@@ -4,9 +4,9 @@
 #
 #  server.py
 #
-#  Serves as mail server implementing SSE and speaking
-#  an extended version of JMAP that understands SSE
-#  
+#  Serves as mail server implementing SSE via db module
+#  and speaking an extended version of JMAP that understands 
+#  SSE
 #
 ############
 
@@ -15,6 +15,7 @@ import os
 import sys
 import threading
 import time
+import backend
 
 DEFAULT_TCP_IP = "127.0.0.1"
 DEFAULT_TCP_PORT = 8000
@@ -70,6 +71,7 @@ class Server():
             if not data: break
             print "[Server] Received msg: " + data
 
+            backend.debugEcho("Test msg from server to backend")
 
     def teardown(self):
 
