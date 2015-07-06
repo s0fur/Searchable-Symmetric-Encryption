@@ -40,6 +40,17 @@ class Client():
         self.s.connect((self.TCP_IP, self.TCP_PORT))
         self.conn = None
 
+    def send(self):
+
+        if (DEBUG):
+            print("[Client] Sending Message to %s:%d\n" % (self.TCP_IP, self.TCP_PORT))
+
+        msg = "Test Message from Client to Server"
+
+        try:
+            result = self.s.send(msg)
+        except socket.error:
+            print "[Client] Error sending msg"
 
     def teardown(self):
 
@@ -76,4 +87,4 @@ def parse_args():
 ########
 
 client = Client()
-
+client.send()

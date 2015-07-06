@@ -35,6 +35,7 @@ class Server():
 
         self.TCP_IP = IP
         self.TCP_PORT = int(PORT)
+        self.BUFFER_SIZE = 1024
 
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -57,10 +58,17 @@ class Server():
         while 1:
             try:
                 self.s.settimeout(.5)
-                (clientsocket, addr) = self.s.accept()
+                (self.conn, addr) = self.s.accept()
             except socket.timeout:
                 time.sleep(1)
-                #continue
+                continue
+
+            if (DEBUG): print("[Server] Connection addr: %s:%d" %
+                             (addr[0], int(addr[1])))
+
+            data = self.conn.recv(self.BUFFER_SIZE)
+            if not data: break
+            print "[Server] Received msg: " + data
 
 
     def teardown(self):
