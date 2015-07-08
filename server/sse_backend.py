@@ -2,7 +2,7 @@
 
 ############
 #
-#  backend.py
+#  sse_backend.py
 #
 #  Serves as SSE implementation for mail server. The routines 
 #  for SSE are invoked by the server module via the API.
@@ -18,10 +18,10 @@ DEBUG = 1
 
 ########
 #
-# SSE
+# Server_SSE
 #
 ########
-class SSE():
+class Server_SSE():
 
     def __init__(self):
 
@@ -30,15 +30,35 @@ class SSE():
         # dictionary for index
         self.indexList = self.setupIndexList()
 
-    # d = get(dict, Fk1(c))
-    def get(self, index, c):
+    def search(self, k1):
+        # k1 is search query from client
 
-        # call Fk1(c)
+        c = 0
+        docIdList # append docIds that match search query and return list
+        while 1:
+            # key = get_key(k1, c)
+            # d = get(key)
+            # m = dec(d)
+            # docIdList.append(m)
+            c = c + 1
 
         pass
 
-    # m = decK2(d)
+    def get_key(self, k1, c):
+        # k1 is search query from client
+        # c is counter from defined in search()
+
+        # use HMAC to derive key
+        #'F(k1, c) -- HMAC'
+
+    def get_doc(self, key):
+        # search db for key match
+        # if match, return encryped doc
+
+        pass
+
     def dec(self, d):
+        # 'm = dec(k2, d)'
         pass
 
     def setupIndexList(self):

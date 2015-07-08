@@ -86,7 +86,7 @@ def parse_args():
 # 'main'
 #
 # Need to bring up client to spin, but also need to take in cli search, 
-# from which we  generate K1 and K2 and send to server.
+# from which we generate K1 and K2 and send to server.
 #
 # Maybe just take args, then spin up client, send, wait for response,
 # display result, return to cli

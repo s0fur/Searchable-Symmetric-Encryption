@@ -33,6 +33,7 @@
 
 # swp files
 *.swp
+*~
 
 # compiled python files
 *.pyc
