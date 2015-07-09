@@ -40,11 +40,11 @@ class Client_SSE():
 
         # Pseudorandom func: HMAC.
         # default digestmod is Crypto.Hash.MD5 
-        self.prf = HMAC.new(self.K)
+        self.prf = HMAC.new(self.k)
 
         # Two K's: generated/initialized by PRF
-        self.k1
-        self.k2 
+        self.k1 = None
+        self.k2 = None
 
         # client's cipher (AES w/ CBC)
         self.cipher = self.initCipher()
@@ -53,23 +53,30 @@ class Client_SSE():
         # initialize keys k & kPrime
         # k used for PRF; kPrime used for Enc/Dec
         # return (k, kPrime)
-        password = b"password"
 
-        hashed = bcrypt.hashpw(password, bcrypt.gensalt())
+        #password = b"password"
 
-        if bcrypt.hashpw(password, hashed) == hashed:
+        hashed = bcrypt.hashpw(self.password, bcrypt.gensalt())
+
+        if bcrypt.hashpw(self.password, hashed) == hashed:
             if (DEBUG): print "PW match!"
         else:
             if (DEBUG): print "No PW match!"
-            exit 1
+            exit(1)
 
-        return 
+        if(DEBUG): print("len of k = %d" % len(hashed))
+
+        # Currently k and kPrime are ==
+        # TODO: how to do the two keys?
+        return (hashed, hashed)
 
     def initCipher(self):
         # initialize Cipher, using kPrime
         # return new Cipher object
 
-        key = self.kPrime
+        # TODO: fix key. Currently just a hack: AES keys must be
+        # 16, 24 or 32 bytes long, but kPrime is 60
+        key = self.kPrime[:16]
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(key, AES.MODE_CBC, iv)
 
