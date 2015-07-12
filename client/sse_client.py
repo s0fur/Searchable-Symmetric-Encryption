@@ -34,7 +34,8 @@ class Client_SSE():
 
     def __init__(self):
 
-        self.client = Client.new()
+        # interface for sending msgs to server
+        self.client = Client()
 
         # need to either set up index, or load it in from file
 
@@ -136,7 +137,11 @@ class Client_SSE():
 
         index = self.encryptIndex(document, word_list)
 
+        # test decryption and search of index
+        self.testSearch(index)
+
         # send updated index to server, as well as the encr messages
+        #self.client.send(index)
 
     def parseDocument(self, infile):
 
@@ -156,17 +161,21 @@ class Client_SSE():
 
     def encryptIndex(self, document, word_list):
 
+        # This is where the SSE update routine is implemented
+
         if (DEBUG): print "Encrypting index of words in %s" % document
 
         L = []
-        # kPlus as described below (first) is used in the implementation
-        # of Dynamic SSE (specifically to allow updating, and requires
-        # mult dicts). For simplicity, I'm first using a basic version
-        # where I only maintain 1 dictionary on the server and on the 
-        # client.  
-        # Additionally, it seems the 2nd dict is just to manage updates
-        # that are added after the initial setup, but since I'm not 
-        # (yet) implementing setup(), two dictionaries is unecessary
+        '''
+        kPlus as described below (first) is used in the implementation
+        of Dynamic SSE (specifically to allow updating, and requires
+        mult dicts). For simplicity, I'm first using a basic version
+        where I only maintain 1 dictionary on the server and on the 
+        client.  
+        Additionally, it seems the 2nd dict is just to manage updates
+        that are added after the initial setup, but since I'm not 
+        (yet) implementing setup(), two dictionaries is unecessary
+        '''
 
         index = anydbm.open("index", "c")
 
@@ -186,17 +195,17 @@ class Client_SSE():
                 k1 = self.PRF(self.k, ("1" + w))
                 k2 = self.PRF(self.k, ("2" + w))
 
-                if (DEBUG): print("k1 = %s\nk2 = %s\n" % (k1, k2))
+                if (DEBUG > 1): print("k1 = %s\nk2 = %s\n" % (k1, k2))
 
                 # Set counter "c" (set as 0 if not in index)
                 c = 0
                 found = 0
                 for k, v in index.iteritems():
                     if k == w:
-                        if (DEBUG): 
-                            print("Found %s in db. C = %d" % (w, c))
-                            found = 1
-                            break
+                        if (DEBUG > 1): 
+                            print("Found '%s' in db. C = %d" % (w, c))
+                        found = 1
+                        break
                     else:
                         c = c + 1
 
@@ -206,19 +215,66 @@ class Client_SSE():
                 l = self.PRF(k1, str(c))
                 d = self.PRF(k2, document)
 
-                if (DEBUG):
-                    print("l = %s\nd = %s\n" % (l, d))
+                if (DEBUG and w == "This"):
                     print "w = " + w + "\tc = " + str(c)
+                    print("l = %s\nd = %s\n" % (l, d))
 
                 c = c + 1
                 index[w] = str(c)
                 L.append((l, d))
 
+        index.close()
         return L
 
     def PRF(self, k, data):
         hmac = HMAC.new(k, data, SHA256)
         return hmac.hexdigest()
+
+    def testSearch(self, index):
+        '''
+        Method for testing locally if the encryption in the update
+        routine is actually accurate. 
+        -create a static search term (ie: "the")
+        -generate hashes with self.k (ie generate k1 and k2)
+        -implement the backend get() and dec() methods to see if they
+         return the correct data
+        -try with search query that isn't in index
+        '''
+
+        # 'Client' activities
+        query = "This"
+        k1 = self.PRF(self.k, ("1" + query))
+        k2 = self.PRF(self.k, ("3" + query))
+
+        if (DEBUG > 1): 
+            print("[testSearch]\nk1:%s\nk2:%s" % (k1, k2))
+
+        # 'Server' activities
+        c = 0
+        found = 0
+        while c < len(index):
+            print "c = " + str(c)
+            result = self.get(index, k1, c)
+            if result: break
+            c = c + 1
+
+        if not result:
+            print "NOT FOUND in INDEX"
+
+        else:
+            print "FOUND RESULT"
+
+    def get(self, index, k, c):
+
+        cc = 0
+        while cc < len(index):
+            F = self.PRF(k, str(c))
+            if (DEBUG > 1):
+                print "[Get] F: " + F
+                print "[Get] Idx: " + index[cc][0] + "\n"
+            if F == index[cc][0]:
+                return F
+            cc = cc + 1
 
 def debugEcho(msg):
     if (DEBUG):

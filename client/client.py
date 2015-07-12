@@ -37,15 +37,19 @@ class Client():
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        self.s.connect((self.TCP_IP, self.TCP_PORT))
+        #self.s.connect((self.TCP_IP, self.TCP_PORT))
         self.conn = None
 
-    def send(self):
+    def send(self, msg):
+
+        self.s.connect((self.TCP_IP, self.TCP_PORT))
 
         if (DEBUG):
             print("[Client] Sending Message to %s:%d\n" % (self.TCP_IP, self.TCP_PORT))
 
-        msg = "Test Message from Client to Server"
+        if (msg == ""):
+            print "[Client] No input message to send"
+            exit(1)
 
         try:
             result = self.s.send(msg)
@@ -93,5 +97,5 @@ def parse_args():
 #
 ########
 
-client = Client()
-client.send()
+#client = Client()
+#client.send()

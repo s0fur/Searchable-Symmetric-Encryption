@@ -15,7 +15,7 @@ import os
 import sys
 import threading
 import time
-import backend
+#import backend
 
 DEFAULT_TCP_IP = "127.0.0.1"
 DEFAULT_TCP_PORT = 8000
@@ -71,7 +71,7 @@ class Server():
             if not data: break
             print "[Server] Received msg: " + data
 
-            backend.debugEcho("Test msg from server to backend")
+            #backend.debugEcho("Test msg from server to backend")
 
     def teardown(self):
 
