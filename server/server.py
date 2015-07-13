@@ -68,10 +68,12 @@ class Server():
 
             data = self.conn.recv(self.BUFFER_SIZE)
             if not data: break
-            print "[Server] Received msg: " + data
+            if (DEBUG > 1): print "[Server] Received msg: " + data
 
-            self.handle_msg(data)
+            # self.handle_msg(data)
 
+            data = json.loads(data)
+            return data
             #backend.debugEcho("Test msg from server to backend")
 
     def handle_msg(self, data):

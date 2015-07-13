@@ -141,6 +141,11 @@ class SSE_Client():
         # PASSES!
         # self.testSearch(index)
 
+        if (DEBUG > 1):
+            print "\n[Client]: Printing list elements to add to index"
+            for x in index:
+                print "%s\n%s\n\n" % (x[0], x[1])
+
         # send updated index to server, as well as the encr messages
         self.client.send("update", index)
 
