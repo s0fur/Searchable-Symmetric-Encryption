@@ -19,6 +19,7 @@ import unicodedata
 import binascii
 import database
 import anydbm
+import string
 from server import Server
 
 DEBUG = 1
@@ -103,6 +104,7 @@ class SSE_Server():
 
             for d in D:
                 m = self.dec(k2, d)
+                m = filter(lambda x: x in string.printable, m)
                 M.append(m) 
 
         if not M:
@@ -112,10 +114,19 @@ class SSE_Server():
         if (DEBUG): 
             print "[Server] Found %d results for query" % len(M)
             for m in M:
-                print "\t - %s" % m
+                print "\t - %s" % repr(m)
             print "\n"
 
         # For each doc in M[], send file back to Client
+        # buf is list of msgs so client can receive them all together 
+        # and parse
+        buf = []
+        for m in M:
+            fd = open(m, "rb")
+            buf.append(binascii.hexlify(fd.read()))
+            fd.close()
+
+        self.server.reply(buf)
 
     def get(self, index_n, k1, count):
        

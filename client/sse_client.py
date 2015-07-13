@@ -113,10 +113,11 @@ class SSE_Client():
 
         outfile.write(self.iv + self.cipher.encrypt(buf))
 
-    def decryptMail(self, infile, outfile):
+    def decryptMail(self, buf, outfile):
         # python sse_client -d enc_msg1.txt dec_msg1.txt
 
-        buf = infile.read()
+        # Just pass in input file buf and fd to write out to
+
         if buf == '': 
             print("[Dec] mail to decrypt is empty!\nExiting\n")
             exit(1)
@@ -266,12 +267,29 @@ class SSE_Client():
             k1 = self.PRF(self.k, ("1" + i))
             k2 = self.PRF(self.k, ("2" + i))
             L.append((k1, k2))
-            if (DEBUG > 1): print "%s:%s" % (k1, k2)
+            if (DEBUG > 1): 
+                print "k1 = " + k1
+                print "k2 = " + k2
 
-            print "k1 = " + k1
-            print "k2 = " + k2
-        # Send list to 
-        self.client.send("search", L)
+        # Send list to server and listen for reply
+        result = self.client.send("search", L)
+        if result:
+            print "GOT REPLY FROM SERVER"
+        else:
+            print "DID NOT RECEIVE REPLY FROM SERVER"
+
+        for i in result:
+            data = i.encode('ascii', 'ignore')
+            data = binascii.unhexlify(data)
+
+            # TODO: Fix current design of server response so we know
+            # which files to write to
+            # Server returns data stream, which gets written to
+            # file. Since we can't know the name of the file, the name
+            # here is arbitrary
+            fd = open("./dec_msg.txt", "w+")
+            self.decryptMail(data, fd)
+            fd.close()
 
     def PRF(self, k, data):
         hmac = HMAC.new(k, data, SHA256)
@@ -364,9 +382,10 @@ def main():
             % (args.decrypt_file[0], args.decrypt_file[1]))
 
         infile = open(args.decrypt_file[0], "r")
+        buf = infile.read()
         outfile = open(args.decrypt_file[1], "w+")
 
-        sse.decryptMail(infile, outfile)
+        sse.decryptMail(buf, outfile)
 
         infile.close()
         outfile.close()

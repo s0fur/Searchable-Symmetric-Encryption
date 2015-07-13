@@ -15,6 +15,8 @@ import socket
 import os
 import sys
 import json
+import time
+import httplib
 
 DEFAULT_TCP_IP = "127.0.0.1"
 DEFAULT_TCP_PORT = 8000
@@ -34,6 +36,7 @@ class Client():
 
         self.TCP_IP = IP
         self.TCP_PORT = int(PORT)
+        self.BUFFER_SIZE = 1024
 
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -68,6 +71,14 @@ class Client():
             print "[Client] Error sending msg"
 
 
+        if msg == "search":
+            print "[Client] Listening for response..."
+            data = self.s.recv(self.BUFFER_SIZE)
+            if not data: return 0
+
+            return json.loads(data)
+
+
     def teardown(self):
 
         self.s.close()
@@ -96,17 +107,3 @@ def parse_args():
     return TCP_IP, TCP_PORT
 
 
-########
-#
-# 'main'
-#
-# Need to bring up client to spin, but also need to take in cli search, 
-# from which we generate K1 and K2 and send to server.
-#
-# Maybe just take args, then spin up client, send, wait for response,
-# display result, return to cli
-#
-########
-
-#client = Client()
-#client.send()

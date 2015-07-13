@@ -16,6 +16,7 @@ import sys
 import threading
 import time
 import json
+import httplib
 
 DEFAULT_TCP_IP = "127.0.0.1"
 DEFAULT_TCP_PORT = 8000
@@ -33,6 +34,7 @@ DEBUG = 1
 class Server():
 
     def __init__(self, IP = DEFAULT_TCP_IP, PORT = DEFAULT_TCP_PORT):
+
         self.TCP_IP = IP
         self.TCP_PORT = int(PORT)
         self.BUFFER_SIZE = 1024
@@ -42,7 +44,6 @@ class Server():
         self.s.bind((self.TCP_IP, self.TCP_PORT))
         self.s.listen(5)
         self.conn = None
-        self.threads = []
 
         if (DEBUG): 
             print("SERVER\tIP: %s\tPORT: %d" % 
@@ -73,13 +74,16 @@ class Server():
             data = json.loads(data)
             return data
 
-    def handle_msg(self, data):
+    def reply(self, data):
 
-        # All msgs sent as JSON
-        # Unpack -- data = json.loads(data)
-        # Inspect element 0 (cmd str) and handle accordingly
+        print data
+        serialized_data = json.dumps(data)
+        try:
+            self.conn.sendall(serialized_data)
+        except socket.error:
+            print "[Server] Error sending msg"
 
-        pass
+        self.conn.close()
 
     def teardown(self):
 
@@ -107,15 +111,3 @@ def parse_args():
     return TCP_IP, TCP_PORT
 
 
-########
-#
-# 'main'
-#
-########
-
-#(IP, PORT) = parse_args()
-
-#server = Server(IP, PORT)
-
-#while 1:
-#    server.listen()
