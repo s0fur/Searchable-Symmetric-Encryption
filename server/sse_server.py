@@ -12,6 +12,8 @@
 import socket
 import os
 import sys
+from Crypto.Hash import HMAC
+from Crypto.Hash import SHA256
 import unicodedata
 import database
 import anydbm
@@ -61,21 +63,54 @@ class SSE_Server():
 
         index.close()
 
-    def search(self, k1):
-        # k1 is search query from client
+    def search(self, query):
 
-        c = 0
-        docIdList # append docIds that match search query and return list
-        while 1:
-            # key = get_key(k1, c)
-            # d = get(key)
-            # m = dec(d)
-            # docIdList.append(m)
-            c = c + 1
+        index = anydbm.open("index", "r")
 
-        pass
+        # TODO: crappy hack for now. Need to get size of index,
+        # but I'm not sure what the best method is. So for now, 
+        # just iterate through and grab the count.
+        count = 0
+        for k, v in index.iteritems():
+            count = count + 1
 
-    def get_key(self, k1, c):
+        # query is a list of search terms, so each 'i' is a word
+        # each word contains k1, to be used to find the correct hashed
+        # document name, and k2 for unhashing the document name
+        L = []
+        for i in query:
+            k1 = i[0].encode('ascii', 'ignore')
+            k2 = i[1].encode('ascii', 'ignore')
+            print k1, k2
+            print "\n\n"
+            c = 0
+            found = 0
+            for k, v in index.iteritems():
+                #print k, v
+                result = self.get(k, k1, c, count)
+                if result:
+                    L.append(result)
+                    break
+                c = c + 1 
+
+
+    def get(self, index_key, k1, c, count):
+       
+        L = []
+        cc = 0
+        while cc < count:
+            F = self.PRF(k1, str(cc))
+            if (DEBUG > 1): print F
+            if F == index_key:
+                L.append(F)
+
+        return L
+
+    def PRF(self, k, data):
+        hmac = HMAC.new(k, data, SHA256)
+        return hmac.hexdigest()
+
+    def get1(self, index, k, c):
         # k1 is search query from client
         # c is counter from defined in search()
 
@@ -95,7 +130,7 @@ class SSE_Server():
         pass
 
     def setupIndexList(self):
-
+        pass
         # run computation to generate index elements
 
         # DEBUG:
@@ -104,8 +139,6 @@ class SSE_Server():
 
             self.indexList.append(indexObj)
         print "indexList = " + self.indexList
-
-        pass
 
     def handle_msg(self, data):
 
@@ -119,11 +152,8 @@ class SSE_Server():
 
         if cmd == SEARCH:
 
-            pass
-
-def debugEcho(msg):
-    if (DEBUG):
-        print ("[BackEnd] Msg from server: %s" % (msg))
+            query = data[1]
+            self.search(query)
 
 
 def main():

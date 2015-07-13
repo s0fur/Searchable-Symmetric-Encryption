@@ -43,8 +43,6 @@ class Client():
 
     def send(self, msg, data = None):
 
-        
-
         if (DEBUG):
             print("[Client] Sending Message to %s:%d\n" 
                    % (self.TCP_IP, self.TCP_PORT))

@@ -18,7 +18,6 @@ from Crypto.Cipher import AES
 from Crypto import Random
 import bcrypt
 from argparse import ArgumentParser
-import binascii
 import string
 import anydbm
 from client import Client
@@ -232,6 +231,22 @@ class SSE_Client():
         index.close()
         return L
 
+    def search(self, query):
+
+        query = query.split()
+
+        # Generate list of querys (may be just 1)
+        L = []
+        for i in query:
+            if (DEBUG > 1): print repr(i)
+            k1 = self.PRF(self.k, ("1" + i))
+            k2 = self.PRF(self.k, ("2" + i))
+            L.append((k1, k2))
+            if (DEBUG > 1): print "%s:%s" % (k1, k2)
+
+        # Send list to 
+        self.client.send("search", L)
+
     def PRF(self, k, data):
         hmac = HMAC.new(k, data, SHA256)
         return hmac.hexdigest()
@@ -259,8 +274,8 @@ class SSE_Client():
         c = 0
         found = 0
         while c < len(index):
-            print "c = " + str(c)
-            result = self.get(index, k1, c)
+            if (DEBUG): print "c = " + str(c)
+            result = self.testGet(index, k1, c)
             if result: break
             c = c + 1
 
@@ -270,7 +285,7 @@ class SSE_Client():
         else:
             print "FOUND RESULT"
 
-    def get(self, index, k, c):
+    def testGet(self, index, k, c):
 
         cc = 0
         while cc < len(index):
@@ -282,16 +297,13 @@ class SSE_Client():
                 return F
             cc = cc + 1
 
-def debugEcho(msg):
-    if (DEBUG):
-        print ("[Client-BackEnd] Msg from client: %s" % (msg))
-
 
 def main():
 
     # Set-up a command-line argument parser
     parser = ArgumentParser()
-    parser.add_argument('-s', '--search', action='store_true')
+    parser.add_argument('-s', '--search', metavar='search', dest='search',
+                        nargs='*')
     parser.add_argument('-u', '--update', metavar='update', dest='update',
                         nargs=1)
     parser.add_argument('-e', '--encrypt', metavar='encrypt_file', 
@@ -338,6 +350,13 @@ def main():
             print("Updating index with document %s" % args.update[0])
 
         sse.update(args.update[0])
+
+    elif args.search:
+        if (DEBUG):
+           print("Searching remote index for word: '%s'" 
+                  % args.search[0])
+
+        sse.search(args.search[0])
 
     elif args.inspect_index:
         if (DEBUG): print("Inspecting the index")

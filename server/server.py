@@ -70,11 +70,8 @@ class Server():
             if not data: break
             if (DEBUG > 1): print "[Server] Received msg: " + data
 
-            # self.handle_msg(data)
-
             data = json.loads(data)
             return data
-            #backend.debugEcho("Test msg from server to backend")
 
     def handle_msg(self, data):
 
