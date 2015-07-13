@@ -2,7 +2,7 @@
 
 ############
 #
-#  sse_backend.py
+#  sse_client.py
 #
 #  Serves as SSE implementation for mail server. The routines 
 #  for SSE are invoked by the server module via the API.
@@ -13,22 +13,24 @@ import socket
 import os
 import sys
 import database
+from server import Server
 
 DEBUG = 1
 
 ########
 #
-# Server_SSE
+# SSE_Server
 #
 ########
-class Server_SSE():
+class SSE_Server():
 
     def __init__(self):
 
-        # need to either set up index, or load it in from file
+        self.server = Server()        
 
-        # dictionary for index
-        self.indexList = self.setupIndexList()
+        # need to either set up index, or load it in from file
+        #self.index = self.setupIndexList()
+        self.index = None
 
     def search(self, k1):
         # k1 is search query from client
@@ -50,6 +52,8 @@ class Server_SSE():
 
         # use HMAC to derive key
         #'F(k1, c) -- HMAC'
+
+        pass
 
     def get_doc(self, key):
         # search db for key match
@@ -79,3 +83,12 @@ def debugEcho(msg):
         print ("[BackEnd] Msg from server: %s" % (msg))
 
 
+def main():
+
+    print "Yo"
+    sse = SSE_Server()
+    sse.server.listen()
+
+
+if __name__ == "__main__":
+    main()

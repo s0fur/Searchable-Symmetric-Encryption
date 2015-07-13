@@ -15,7 +15,7 @@ import os
 import sys
 import threading
 import time
-#import backend
+import json
 
 DEFAULT_TCP_IP = "127.0.0.1"
 DEFAULT_TCP_PORT = 8000
@@ -32,8 +32,7 @@ DEBUG = 1
 ########
 class Server():
 
-    def __init__(self, IP = DEFAULT_TCP_PORT, PORT = DEFAULT_TCP_PORT):
-
+    def __init__(self, IP = DEFAULT_TCP_IP, PORT = DEFAULT_TCP_PORT):
         self.TCP_IP = IP
         self.TCP_PORT = int(PORT)
         self.BUFFER_SIZE = 1024
@@ -49,7 +48,7 @@ class Server():
             print("SERVER\tIP: %s\tPORT: %d" % 
             (self.TCP_IP, int(self.TCP_PORT)))
 
-    def receive(self):
+    def listen(self):
         if (DEBUG): 
             print("Listening on (IP:PORT) %s:%d ..." % (self.TCP_IP,
                                                         self.TCP_PORT))
@@ -71,7 +70,17 @@ class Server():
             if not data: break
             print "[Server] Received msg: " + data
 
+            self.handle_msg(data)
+
             #backend.debugEcho("Test msg from server to backend")
+
+    def handle_msg(self, data):
+
+        # All msgs sent as JSON
+        # Unpack -- data = json.loads(data)
+        # Inspect element 0 (cmd str) and handle accordingly
+
+        pass
 
     def teardown(self):
 
@@ -105,9 +114,9 @@ def parse_args():
 #
 ########
 
-(IP, PORT) = parse_args()
+#(IP, PORT) = parse_args()
 
-server = Server(IP, PORT)
+#server = Server(IP, PORT)
 
-while 1:
-    server.receive()
+#while 1:
+#    server.listen()

@@ -27,10 +27,10 @@ DEBUG = 1
 
 ########
 #
-# Client_SSE
+# SSE_Client
 #
 ########
-class Client_SSE():
+class SSE_Client():
 
     def __init__(self):
 
@@ -138,10 +138,11 @@ class Client_SSE():
         index = self.encryptIndex(document, word_list)
 
         # test decryption and search of index
-        self.testSearch(index)
+        # PASSES!
+        # self.testSearch(index)
 
         # send updated index to server, as well as the encr messages
-        #self.client.send(index)
+        self.client.send("update", index)
 
     def parseDocument(self, infile):
 
@@ -215,7 +216,7 @@ class Client_SSE():
                 l = self.PRF(k1, str(c))
                 d = self.PRF(k2, document)
 
-                if (DEBUG and w == "This"):
+                if (DEBUG > 1):
                     print "w = " + w + "\tc = " + str(c)
                     print("l = %s\nd = %s\n" % (l, d))
 
@@ -296,7 +297,7 @@ def main():
     parser.add_argument('-i', '--inspect index', dest='inspect_index')
     args = parser.parse_args()
  
-    sse = Client_SSE()
+    sse = SSE_Client()
 
     # Decode the key if it was supplied
     # key = base64.b64decode(args.key) if args.key else None

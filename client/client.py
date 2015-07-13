@@ -14,6 +14,7 @@
 import socket
 import os
 import sys
+import json
 
 DEFAULT_TCP_IP = "127.0.0.1"
 DEFAULT_TCP_PORT = 8000
@@ -40,19 +41,31 @@ class Client():
         #self.s.connect((self.TCP_IP, self.TCP_PORT))
         self.conn = None
 
-    def send(self, msg):
+    def send(self, msg, data = None):
 
-        self.s.connect((self.TCP_IP, self.TCP_PORT))
+        
 
         if (DEBUG):
-            print("[Client] Sending Message to %s:%d\n" % (self.TCP_IP, self.TCP_PORT))
+            print("[Client] Sending Message to %s:%d\n" 
+                   % (self.TCP_IP, self.TCP_PORT))
 
         if (msg == ""):
             print "[Client] No input message to send"
             exit(1)
 
+        if (data):
+            msg_list = []
+            msg_list.append(msg)
+            msg_list.append(data)
+            serialized_data = json.dumps(msg_list)
+
+        else: # Just a msg, no data
+            serialized_data = json.dumps(msg)
+
+        self.s.connect((self.TCP_IP, self.TCP_PORT))
+
         try:
-            result = self.s.send(msg)
+            result = self.s.send(serialized_data)
         except socket.error:
             print "[Client] Error sending msg"
 
