@@ -17,6 +17,7 @@ from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from Crypto import Random
 import bcrypt
+import binascii
 from argparse import ArgumentParser
 import string
 import anydbm
@@ -127,6 +128,19 @@ class SSE_Client():
         # decrypt all but first 16 bytes (iv)
         outfile.write(cipher.decrypt(buf[16:]))
 
+    def encryptMailID(self, k2, document):
+
+        # Encrypt doc id (document) with key passed in (k2)
+
+        iv = Random.new().read(AES.block_size)
+        cipher = AES.new(k2[:16], AES.MODE_CBC, iv)
+
+        while len(document)%16 != 0:
+            document = document + "\x08"
+
+        encId = iv + cipher.encrypt(document)
+        return binascii.hexlify(encId)
+
     def update(self, document):
 
         infile = open(document, "r")
@@ -218,7 +232,9 @@ class SSE_Client():
                     print("'%s' not found in db" % w)
 
                 l = self.PRF(k1, str(c))
-                d = self.PRF(k2, document)
+
+                #d = self.PRF(k2, document)
+                d = self.encryptMailID(k2, document)
 
                 if (DEBUG > 1):
                     print "w = " + w + "\tc = " + str(c)
@@ -233,6 +249,14 @@ class SSE_Client():
 
     def search(self, query):
 
+        if (DEBUG > 1):
+            index = anydbm.open("index", "r")
+            print "[Client] Index"
+            for k, v in index.iteritems():
+                print "\t" + k
+                print "\t" + v
+                print "\n"
+
         query = query.split()
 
         # Generate list of querys (may be just 1)
@@ -244,6 +268,8 @@ class SSE_Client():
             L.append((k1, k2))
             if (DEBUG > 1): print "%s:%s" % (k1, k2)
 
+            print "k1 = " + k1
+            print "k2 = " + k2
         # Send list to 
         self.client.send("search", L)
 
@@ -265,7 +291,7 @@ class SSE_Client():
         # 'Client' activities
         query = "This"
         k1 = self.PRF(self.k, ("1" + query))
-        k2 = self.PRF(self.k, ("3" + query))
+        k2 = self.PRF(self.k, ("2" + query))
 
         if (DEBUG > 1): 
             print("[testSearch]\nk1:%s\nk2:%s" % (k1, k2))

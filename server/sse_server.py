@@ -14,7 +14,9 @@ import os
 import sys
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
+from Crypto.Cipher import AES
 import unicodedata
+import binascii
 import database
 import anydbm
 from server import Server
@@ -73,72 +75,76 @@ class SSE_Server():
         count = 0
         for k, v in index.iteritems():
             count = count + 1
+            if (DEBUG > 1):
+                print "K: " + k
+                print "V: " + v
+                print "\n"
 
         # query is a list of search terms, so each 'i' is a word
         # each word contains k1, to be used to find the correct hashed
         # document name, and k2 for unhashing the document name
-        L = []
+        M = []
         for i in query:
             k1 = i[0].encode('ascii', 'ignore')
             k2 = i[1].encode('ascii', 'ignore')
-            print k1, k2
-            print "\n\n"
-            c = 0
-            found = 0
+            D = []
             for k, v in index.iteritems():
-                #print k, v
-                result = self.get(k, k1, c, count)
-                if result:
-                    L.append(result)
-                    break
-                c = c + 1 
+                d = self.get((k,v), k1, count)
+                if d:
+                    D.append(d)
+                    if DEBUG > 1: 
+                        print "[Server] Search found result!\n%s" % (k)
 
+            if not D: continue
 
-    def get(self, index_key, k1, c, count):
+            # Go through list of docs in which the search query was found
+            # dec() each and add to list of id
+            # Send those messages are found to the client
+
+            for d in D:
+                m = self.dec(k2, d)
+                M.append(m) 
+
+        if not M:
+            print "[Server]: Found no results for query"
+            return 0
+
+        if (DEBUG): 
+            print "[Server] Found %d results for query" % len(M)
+            for m in M:
+                print "\t - %s" % m
+            print "\n"
+
+        # For each doc in M[], send file back to Client
+
+    def get(self, index_n, k1, count):
        
-        L = []
         cc = 0
         while cc < count:
             F = self.PRF(k1, str(cc))
-            if (DEBUG > 1): print F
-            if F == index_key:
-                L.append(F)
+            if (DEBUG > 1): 
+                print "index key = " + index_n[0]
+                print "PRF of k1 and %d = %s\n" % (cc, F)
+            if F == index_n[0]:
+                return index_n[1]
+            cc = cc + 1
 
-        return L
+        return 0
+
+    def dec(self, k2, d):
+
+        d_bin = binascii.unhexlify(d) 
+        iv = d_bin[:16]
+        cipher = AES.new(k2[:16], AES.MODE_CBC, iv)
+        doc = cipher.decrypt(d_bin[16:])
+
+        if (DEBUG): print "[Server]: Retrieved Doc = %s" % (doc)
+
+        return doc
 
     def PRF(self, k, data):
         hmac = HMAC.new(k, data, SHA256)
         return hmac.hexdigest()
-
-    def get1(self, index, k, c):
-        # k1 is search query from client
-        # c is counter from defined in search()
-
-        # use HMAC to derive key
-        #'F(k1, c) -- HMAC'
-
-        pass
-
-    def get_doc(self, key):
-        # search db for key match
-        # if match, return encryped doc
-
-        pass
-
-    def dec(self, d):
-        # 'm = dec(k2, d)'
-        pass
-
-    def setupIndexList(self):
-        pass
-        # run computation to generate index elements
-
-        # DEBUG:
-        while i < 5:
-            indexObj = database.Database()
-
-            self.indexList.append(indexObj)
-        print "indexList = " + self.indexList
 
     def handle_msg(self, data):
 
