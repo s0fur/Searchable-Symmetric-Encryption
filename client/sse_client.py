@@ -181,7 +181,8 @@ class SSE_Client():
                 print "%s\n%s\n\n" % (x[0], x[1])
 
         # send updated index to server, as well as the encr messages
-        self.client.send("update", index)
+        #self.client.send("update", index)
+        return index
 
     def parseDocument(self, infile):
 
@@ -316,23 +317,25 @@ class SSE_Client():
         hmac = HMAC.new(k, data, SHA256)
         return hmac.hexdigest()
 
-    def send(self, routine, data, url = DEFAULT_URL):
+    def send(self, routine, data, in_url = DEFAULT_URL):
 
-        send_url = url
+        url = in_url
 
         if routine == SEARCH:
-            send_url = url + SEARCH
+            url = url + SEARCH
         elif routine == UPDATE:
-            send_url = url + UPDATE
+            url = url + UPDATE
         else:
             print "[Client] Error: bad routine for send()"
             exit(1)
+
+        if (DEBUG): print url
 
         values = { 'query' : data }
         headers = {'Content-Type': 'application/json'}
         data = json.dumps(values)
 
-        return requests.post(send_url, data, headers = headers)
+        return requests.post(url, data, headers = headers)
 
     def testSearch(self, index):
         '''
@@ -432,7 +435,11 @@ def main():
         if (DEBUG):
             print("Updating index with document %s" % args.update[0])
 
-        sse.update(args.update[0])
+        data = sse.update(args.update[0])
+        r = sse.send(UPDATE, data)
+        data = r.json()
+        results = data['results']
+        print "Results of UPDATE: " + results 
 
     elif args.search:
         if (DEBUG):
@@ -442,8 +449,8 @@ def main():
         data = sse.search(args.search[0])
         r = sse.send(SEARCH, data)
         data = r.json()
-        print data
         results = data['results']
+        print "Results of SEARCH:"
         for i in results:
             sse.decryptMail(binascii.unhexlify(i), )
 

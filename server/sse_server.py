@@ -39,8 +39,15 @@ SEARCH = "search"
 # SSE_Server
 #
 ########
-@app.route('/update')
-def update(new_index):
+@app.route('/update', methods=['POST'])
+def update():
+
+    if not request.json:
+        return jsonify({'ret' : 'Error: not json'})
+
+    new_index = request.get_json(force=True)
+    if (DEBUG > 1): print new_index['query']
+    new_index = new_index['query']
 
     index = anydbm.open("index", "c")
 
@@ -51,6 +58,7 @@ def update(new_index):
         for k, v in index.iteritems():
             if i0 == k and i1 == v:
                 exists = 1
+                print "EXISTS"
                 break
 
         # TODO: I think this is the issue with overwriting the
@@ -65,6 +73,7 @@ def update(new_index):
             print "k:%s\nv:%s\n\n" % (k, v)
 
     index.close()
+    return jsonify(results="GOOD UPDATE")
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -135,8 +144,6 @@ def search():
         buf.append(binascii.hexlify(fd.read()))
         fd.close()
 
-    #server.reply(buf)
-    # TODO: how to return? JSONify here? Have a packing function?
     return jsonify(results=buf)
 
 def get(index_n, k1, count):
