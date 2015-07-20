@@ -10,6 +10,8 @@
 ############
 
 import socket
+import urllib
+import urllib2
 import os
 import sys
 from Crypto.Hash import HMAC
@@ -22,8 +24,16 @@ from argparse import ArgumentParser
 import string
 import anydbm
 from client import Client
+import json
+from flask import Flask, jsonify, request
+import requests
 
 DEBUG = 1
+SEARCH = "search"
+UPDATE = "update"
+DEFAULT_URL = "http://localhost:5000/"
+
+app = Flask(__name__)
 
 ########
 #
@@ -113,7 +123,7 @@ class SSE_Client():
 
         outfile.write(self.iv + self.cipher.encrypt(buf))
 
-    def decryptMail(self, buf, outfile):
+    def decryptMail(self, buf, outfile=None):
         # python sse_client -d enc_msg1.txt dec_msg1.txt
 
         # Just pass in input file buf and fd to write out to
@@ -127,7 +137,12 @@ class SSE_Client():
         cipher = AES.new(self.kPrime[:16], AES.MODE_CBC, buf[:16])
 
         # decrypt all but first 16 bytes (iv)
-        outfile.write(cipher.decrypt(buf[16:]))
+        if (outfile):
+            outfile.write(cipher.decrypt(buf[16:]))
+        else:
+            tmp = cipher.decrypt(buf[16:])
+            print tmp
+
 
     def encryptMailID(self, k2, document):
 
@@ -140,6 +155,11 @@ class SSE_Client():
             document = document + "\x08"
 
         encId = iv + cipher.encrypt(document)
+
+        if (DEBUG > 1):
+            print("New ID for '%s' = %s" % 
+                 (document, (binascii.hexlify(encId))))
+
         return binascii.hexlify(encId)
 
     def update(self, document):
@@ -156,7 +176,7 @@ class SSE_Client():
         # self.testSearch(index)
 
         if (DEBUG > 1):
-            print "\n[Client]: Printing list elements to add to index"
+            print "\n[Client] Printing list elements to add to index"
             for x in index:
                 print "%s\n%s\n\n" % (x[0], x[1])
 
@@ -234,7 +254,6 @@ class SSE_Client():
 
                 l = self.PRF(k1, str(c))
 
-                #d = self.PRF(k2, document)
                 d = self.encryptMailID(k2, document)
 
                 if (DEBUG > 1):
@@ -271,6 +290,8 @@ class SSE_Client():
                 print "k1 = " + k1
                 print "k2 = " + k2
 
+        return L
+
         # Send list to server and listen for reply
         result = self.client.send("search", L)
         if result:
@@ -294,6 +315,24 @@ class SSE_Client():
     def PRF(self, k, data):
         hmac = HMAC.new(k, data, SHA256)
         return hmac.hexdigest()
+
+    def send(self, routine, data, url = DEFAULT_URL):
+
+        send_url = url
+
+        if routine == SEARCH:
+            send_url = url + SEARCH
+        elif routine == UPDATE:
+            send_url = url + UPDATE
+        else:
+            print "[Client] Error: bad routine for send()"
+            exit(1)
+
+        values = { 'query' : data }
+        headers = {'Content-Type': 'application/json'}
+        data = json.dumps(values)
+
+        return requests.post(send_url, data, headers = headers)
 
     def testSearch(self, index):
         '''
@@ -345,6 +384,7 @@ class SSE_Client():
 def main():
 
     # Set-up a command-line argument parser
+    
     parser = ArgumentParser()
     parser.add_argument('-s', '--search', metavar='search', dest='search',
                         nargs='*')
@@ -356,12 +396,10 @@ def main():
                         dest='decrypt_file', nargs=2)
     parser.add_argument('-k', '--key', metavar='key')
     parser.add_argument('-i', '--inspect index', dest='inspect_index')
+    parser.add_argument('-t', '--test_http', dest='test_http')
     args = parser.parse_args()
  
     sse = SSE_Client()
-
-    # Decode the key if it was supplied
-    # key = base64.b64decode(args.key) if args.key else None
 
     if args.encrypt_file:
         if (DEBUG): 
@@ -398,10 +436,17 @@ def main():
 
     elif args.search:
         if (DEBUG):
-           print("Searching remote index for word: '%s'" 
+           print("Searching remote index for word(s): '%s'" 
                   % args.search[0])
 
-        sse.search(args.search[0])
+        data = sse.search(args.search[0])
+        r = sse.send(SEARCH, data)
+        data = r.json()
+        print data
+        results = data['results']
+        for i in results:
+            sse.decryptMail(binascii.unhexlify(i), )
+
 
     elif args.inspect_index:
         if (DEBUG): print("Inspecting the index")
@@ -411,8 +456,23 @@ def main():
 
         index.close()
 
+    elif args.test_http:
+        url = "http://localhost:5000/search"
+        k1 = "c18d3a0d0a6278ee206447b13cbb46f182c7bb5d038398887a9506e673a1c016"
+        k2 = "ccb215ad2018660ad49668bca3c7f4222dc737f2346bf9853d06917d77771655"
+        k = []
+        k.append(k1)
+        k.append(k2)
+        #values = { 'k1' : k1, 'k2' : k2 }
+        values = { 'query' : k }
+        data = urllib.urlencode(values)
+        req = urllib2.Request(url, data)  
+        response = urllib2.urlopen(req)
+        data = response.read()
+        print data
+
     else:
-        print "Must specify encrypt or decrypt!"
+        print "Must specify a legitimate option"
         exit(1)
 
 

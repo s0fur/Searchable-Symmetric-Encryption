@@ -16,13 +16,15 @@ import sys
 import threading
 import time
 import json
-import httplib
+from flask import Flask
+from sse_server import SSE_Server
 
 DEFAULT_TCP_IP = "127.0.0.1"
 DEFAULT_TCP_PORT = 8000
 
 DEBUG = 1
 
+app = Flask(__name__)
 
 ########
 #
@@ -34,6 +36,10 @@ DEBUG = 1
 class Server():
 
     def __init__(self, IP = DEFAULT_TCP_IP, PORT = DEFAULT_TCP_PORT):
+
+        # Cheap solution for this transition from socket -> http (flask)
+        if (app):
+            return
 
         self.TCP_IP = IP
         self.TCP_PORT = int(PORT)
@@ -89,6 +95,20 @@ class Server():
 
         self.conn.close()
 
+    @app.route('/')
+    def testFunc1():
+        user = {'nickname': 'E-man'}
+        return '''
+<html>
+  <head>
+    <title>Home Page</title>
+  </head>
+  <body>
+    <h1>Hello, ''' + user['nickname'] + '''</h1>
+  </body>
+</html>
+'''
+
 ########
 #
 # parse_args
@@ -111,3 +131,8 @@ def parse_args():
     return TCP_IP, TCP_PORT
 
 
+server = Server()
+sse = SSE_Server()
+
+if __name__ == '__main__':
+    app.run(debug=True)
