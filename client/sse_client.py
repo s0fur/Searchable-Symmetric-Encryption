@@ -31,6 +31,7 @@ import requests
 DEBUG = 1
 SEARCH = "search"
 UPDATE = "update"
+SEND_MAIL = "addmail"
 DEFAULT_URL = "http://localhost:5000/"
 
 app = Flask(__name__)
@@ -317,22 +318,32 @@ class SSE_Client():
         hmac = HMAC.new(k, data, SHA256)
         return hmac.hexdigest()
 
-    def send(self, routine, data, in_url = DEFAULT_URL):
+    def send(self, routine, data, filename = None, in_url = DEFAULT_URL):
 
         url = in_url
 
         if routine == SEARCH:
             url = url + SEARCH
+            values = { 'query' : data }
+            headers = {'Content-Type': 'application/json'}
         elif routine == UPDATE:
             url = url + UPDATE
+            values = { 'query' : data }
+            headers = {'Content-Type': 'application/json'}
+        elif routine == SEND_MAIL:
+            url = url + SEND_MAIL
+            values = { 'file' : data, 'filename' : filename }
+            headers = {'Content-Type': 'application/json',
+                       'Content-Disposition': 
+                       'attachment;filename=' + filename}
         else:
             print "[Client] Error: bad routine for send()"
             exit(1)
 
-        if (DEBUG): print url
+        if (DEBUG > 1): 
+            print url
+            print values
 
-        values = { 'query' : data }
-        headers = {'Content-Type': 'application/json'}
         data = json.dumps(values)
 
         return requests.post(url, data, headers = headers)
@@ -435,11 +446,32 @@ def main():
         if (DEBUG):
             print("Updating index with document %s" % args.update[0])
 
-        data = sse.update(args.update[0])
+        infilename = args.update[0]
+        outfilename = args.update[0].split("/")[1]
+
+        data = sse.update(infilename)
         r = sse.send(UPDATE, data)
         data = r.json()
         results = data['results']
         print "Results of UPDATE: " + results 
+        
+        # encrypt msg
+        infile = open(infilename, "r")     
+        outfilename_full = "enc_mail/" + outfilename   
+        outfile = open(outfilename_full, "w+")
+        sse.encryptMail(infile, outfile)
+        infile.close()
+        
+        outfile.seek(0)
+        data = binascii.hexlify(outfile.read())
+
+        # send it
+        r = sse.send(SEND_MAIL, data, outfilename)        
+        data = r.json()
+        results = data['results']
+        print "Results of UPDATE/ADD FILE: " + results
+
+        outfile.close()
 
     elif args.search:
         if (DEBUG):

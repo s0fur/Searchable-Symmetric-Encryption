@@ -25,9 +25,12 @@ from flask import Flask
 from flask import request
 from flask import render_template
 from flask import jsonify
+from werkzeug import secure_filename
 
 app = Flask(__name__)
-
+app.config['UPLOAD_FOLDER'] = 'mail'
+app.config['ALLOWED_EXTENSIONS'] = set(['txt', 'pdf', 'png', 'jpg', 
+                                        'jpeg', 'gif'])
 DEBUG = 1
 
 # CMD list
@@ -39,6 +42,36 @@ SEARCH = "search"
 # SSE_Server
 #
 ########
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
+
+@app.route('/addmail', methods=['POST'])
+def add_mail():
+
+    if not request.json:
+        return jsonify({'ret' : 'Error: not json'})
+
+    data = request.get_json(force=True)
+
+    file = data['file']
+    file = binascii.unhexlify(file)
+ 
+    filename = data['filename']
+
+    path = os.path.join(app.config['UPLOAD_FOLDER'], filename) 
+
+    f = open(path, "w+")
+    f.write(file)
+    f.close()
+
+    return jsonify(results="GOOD ADD FILE")
+
+@app.route('/getmail', methods=['GET'])
+def get_mail():
+    pass
+
 @app.route('/update', methods=['POST'])
 def update():
 
