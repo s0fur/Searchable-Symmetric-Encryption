@@ -14,6 +14,7 @@ import urllib
 import urllib2
 import os
 import sys
+sys.path.append(os.path.realpath('../jmap'))
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
@@ -27,11 +28,12 @@ from client import Client
 import json
 from flask import Flask, jsonify, request
 import requests
+import jmap
 
 DEBUG = 1
 SEARCH = "search"
 UPDATE = "update"
-SEND_MAIL = "addmail"
+ADD_MAIL = "addmail"
 DEFAULT_URL = "http://localhost:5000/"
 
 app = Flask(__name__)
@@ -292,27 +294,15 @@ class SSE_Client():
                 print "k1 = " + k1
                 print "k2 = " + k2
 
-        return L
+        message = jmap.pack(SEARCH, L, "1")
 
-        # Send list to server and listen for reply
-        result = self.client.send("search", L)
-        if result:
-            print "GOT REPLY FROM SERVER"
-        else:
-            print "DID NOT RECEIVE REPLY FROM SERVER"
+        r = self.send(SEARCH, message) 
+        ret_data = r.json()
+        results = ret_data['results']
+        print "Results of SEARCH:"
+        for i in results:
+            self.decryptMail(binascii.unhexlify(i), )
 
-        for i in result:
-            data = i.encode('ascii', 'ignore')
-            data = binascii.unhexlify(data)
-
-            # TODO: Fix current design of server response so we know
-            # which files to write to
-            # Server returns data stream, which gets written to
-            # file. Since we can't know the name of the file, the name
-            # here is arbitrary
-            fd = open("./dec_msg.txt", "w+")
-            self.decryptMail(data, fd)
-            fd.close()
 
     def PRF(self, k, data):
         hmac = HMAC.new(k, data, SHA256)
@@ -324,18 +314,17 @@ class SSE_Client():
 
         if routine == SEARCH:
             url = url + SEARCH
-            values = { 'query' : data }
-            headers = {'Content-Type': 'application/json'}
+            headers = jmap.jmap_header()
         elif routine == UPDATE:
             url = url + UPDATE
-            values = { 'query' : data }
-            headers = {'Content-Type': 'application/json'}
-        elif routine == SEND_MAIL:
-            url = url + SEND_MAIL
-            values = { 'file' : data, 'filename' : filename }
+            headers = jmap.jmap_header()
+            #values = { 'query' : data }
+        elif routine == ADD_MAIL:
+            url = url + ADD_MAIL
             headers = {'Content-Type': 'application/json',
                        'Content-Disposition': 
                        'attachment;filename=' + filename}
+            #values = { 'file' : data, 'filename' : filename }
         else:
             print "[Client] Error: bad routine for send()"
             exit(1)
@@ -344,7 +333,7 @@ class SSE_Client():
             print url
             print values
 
-        data = json.dumps(values)
+        #data = json.dumps(values)
 
         return requests.post(url, data, headers = headers)
 
@@ -449,13 +438,14 @@ def main():
         infilename = args.update[0]
         outfilename = args.update[0].split("/")[1]
 
+        # First update index and send it
         data = sse.update(infilename)
         r = sse.send(UPDATE, data)
         data = r.json()
         results = data['results']
         print "Results of UPDATE: " + results 
         
-        # encrypt msg
+        # Then encrypt msg
         infile = open(infilename, "r")     
         outfilename_full = "enc_mail/" + outfilename   
         outfile = open(outfilename_full, "w+")
@@ -465,8 +455,8 @@ def main():
         outfile.seek(0)
         data = binascii.hexlify(outfile.read())
 
-        # send it
-        r = sse.send(SEND_MAIL, data, outfilename)        
+        # Then send message
+        r = sse.send(ADD_MAIL, data, outfilename)        
         data = r.json()
         results = data['results']
         print "Results of UPDATE/ADD FILE: " + results
@@ -478,14 +468,7 @@ def main():
            print("Searching remote index for word(s): '%s'" 
                   % args.search[0])
 
-        data = sse.search(args.search[0])
-        r = sse.send(SEARCH, data)
-        data = r.json()
-        results = data['results']
-        print "Results of SEARCH:"
-        for i in results:
-            sse.decryptMail(binascii.unhexlify(i), )
-
+        sse.search(args.search[0])
 
     elif args.inspect_index:
         if (DEBUG): print("Inspecting the index")

@@ -2,7 +2,7 @@
 
 ############
 #
-#  sse_client.py
+#  sse_server.py
 #
 #  Serves as SSE implementation for mail server. The routines 
 #  for SSE are invoked by the server module via the API.
@@ -36,6 +36,8 @@ DEBUG = 1
 # CMD list
 UPDATE = "update"
 SEARCH = "search"
+SEARCH_METHOD = "getEncryptedMessages"
+UPDATE_METHOD = "updateEncryptedIndex"
 
 ########
 #
@@ -68,6 +70,8 @@ def add_mail():
 
     return jsonify(results="GOOD ADD FILE")
 
+# TODO: Use this to request mail? Currently just sending them back after
+# SEARCH routine
 @app.route('/getmail', methods=['GET'])
 def get_mail():
     pass
@@ -114,9 +118,16 @@ def search():
     if not request.json:
         return jsonify({'ret' : 'Error: not json'})
 
-    query = request.get_json(force=True)
-    if (DEBUG > 1): print query['query']
+    query = request.get_json()
+
+    if query[0] != SEARCH_METHOD:
+        return jsonify({'ret' : 'Error: Wrong Method for url'})
+
+    id_num = query[2]
+    query = query[1]
     query = query['query']
+
+    print query
 
     index = anydbm.open("index", "r")
 
@@ -167,6 +178,13 @@ def search():
         for m in M:
             print "\t - %s" % repr(m)
         print "\n"
+
+
+    # TODO: Separate method for sending back files?  
+    # Should it be whole files or just msg ids?
+    # Currently sends msgs back in their entirety
+
+    # TODO: Need to send back id_num and check at client side
 
     # For each doc in M[], send file back to Client
     # buf is list of msgs so client can receive them all together 
