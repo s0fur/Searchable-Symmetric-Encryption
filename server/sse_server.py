@@ -36,8 +36,10 @@ DEBUG = 1
 # CMD list
 UPDATE = "update"
 SEARCH = "search"
+ADD_MAIL = "addmail"
 SEARCH_METHOD = "getEncryptedMessages"
 UPDATE_METHOD = "updateEncryptedIndex"
+ADD_MAIL_METHOD = "putEncryptedMessage"
 
 ########
 #
@@ -55,13 +57,16 @@ def add_mail():
     if not request.json:
         return jsonify({'ret' : 'Error: not json'})
 
-    data = request.get_json(force=True)
+    data = request.get_json()
+    if data[0] != ADD_MAIL_METHOD:
+        return jsonify({'ret' : 'Error: Wrong Method for url'})
 
+    id_num = data[2]
+    data = data[1]
     file = data['file']
     file = binascii.unhexlify(file)
- 
-    filename = data['filename']
 
+    filename = data['filename']
     path = os.path.join(app.config['UPLOAD_FOLDER'], filename) 
 
     f = open(path, "w+")
@@ -82,9 +87,13 @@ def update():
     if not request.json:
         return jsonify({'ret' : 'Error: not json'})
 
-    new_index = request.get_json(force=True)
-    if (DEBUG > 1): print new_index['query']
-    new_index = new_index['query']
+    new_index = request.get_json()
+    if new_index[0] != UPDATE_METHOD:
+        return jsonify({'ret' : 'Error: Wrong Method for url'})
+
+    id_num = new_index[2]
+    new_index = new_index[1]
+    new_index = new_index['index']
 
     index = anydbm.open("index", "c")
 
@@ -119,7 +128,6 @@ def search():
         return jsonify({'ret' : 'Error: not json'})
 
     query = request.get_json()
-
     if query[0] != SEARCH_METHOD:
         return jsonify({'ret' : 'Error: Wrong Method for url'})
 
@@ -179,7 +187,6 @@ def search():
             print "\t - %s" % repr(m)
         print "\n"
 
-
     # TODO: Separate method for sending back files?  
     # Should it be whole files or just msg ids?
     # Currently sends msgs back in their entirety
@@ -226,20 +233,6 @@ def PRF(k, data):
     hmac = HMAC.new(k, data, SHA256)
     return hmac.hexdigest()
 
-def handle_msg(data):
-
-    cmd = data[0]
-    print("[Server] Cmd from client: %s" % cmd)
-
-    if cmd == UPDATE:
-        # New list of tuples mapping l & d
-        new_index = data[1]
-        update(new_index)
-
-    if cmd == SEARCH:
-
-        query = data[1]
-        search(query)
 
 
 if __name__ == '__main__':

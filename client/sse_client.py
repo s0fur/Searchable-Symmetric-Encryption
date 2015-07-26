@@ -74,6 +74,7 @@ class SSE_Client():
         # client's cipher (AES w/ CBC)
         self.cipher = self.initCipher()
 
+
     def initKeys(self):
         # initialize keys k & kPrime
         # k used for PRF; kPrime used for Enc/Dec
@@ -96,6 +97,7 @@ class SSE_Client():
         # TODO: how to do the two keys?
         return (hashed, hashed)
 
+
     def initCipher(self):
         # initialize Cipher, using kPrime
         # return new Cipher object
@@ -110,6 +112,7 @@ class SSE_Client():
         cipher = AES.new(key, AES.MODE_CBC, self.iv)
 
         return cipher
+
 
     def encryptMail(self, infile, outfile):
         # python sse_client.py -e ../mail/msg1.txt enc_msg1.txt
@@ -165,7 +168,38 @@ class SSE_Client():
 
         return binascii.hexlify(encId)
 
-    def update(self, document):
+
+    def update(self, infilename, outfilename):
+
+        # First update index and send it
+        data = self.update_index(infilename)
+        message = jmap.pack(UPDATE, data, "1")
+        r = self.send(UPDATE, message)
+        data = r.json()
+        results = data['results']
+        print "Results of UPDATE: " + results 
+        
+        # Then encrypt msg
+        infile = open(infilename, "r")     
+        outfilename_full = "enc_mail/" + outfilename   
+        outfile = open(outfilename_full, "w+")
+        self.encryptMail(infile, outfile)
+        infile.close()
+        
+        outfile.seek(0)
+        data = binascii.hexlify(outfile.read())
+        message = jmap.pack(ADD_MAIL, data, "1", outfilename)
+
+        # Then send message
+        r = self.send(ADD_MAIL, message, outfilename)        
+        data = r.json()
+        results = data['results']
+        print "Results of UPDATE/ADD FILE: " + results
+
+        outfile.close()
+
+
+    def update_index(self, document):
 
         infile = open(document, "r")
         word_list = self.parseDocument(infile)
@@ -183,9 +217,8 @@ class SSE_Client():
             for x in index:
                 print "%s\n%s\n\n" % (x[0], x[1])
 
-        # send updated index to server, as well as the encr messages
-        #self.client.send("update", index)
         return index
+
 
     def parseDocument(self, infile):
 
@@ -202,6 +235,7 @@ class SSE_Client():
                     word_list = [word]
 
         return word_list
+
 
     def encryptIndex(self, document, word_list):
 
@@ -271,6 +305,7 @@ class SSE_Client():
         index.close()
         return L
 
+
     def search(self, query):
 
         if (DEBUG > 1):
@@ -308,6 +343,7 @@ class SSE_Client():
         hmac = HMAC.new(k, data, SHA256)
         return hmac.hexdigest()
 
+
     def send(self, routine, data, filename = None, in_url = DEFAULT_URL):
 
         url = in_url
@@ -318,13 +354,11 @@ class SSE_Client():
         elif routine == UPDATE:
             url = url + UPDATE
             headers = jmap.jmap_header()
-            #values = { 'query' : data }
         elif routine == ADD_MAIL:
             url = url + ADD_MAIL
             headers = {'Content-Type': 'application/json',
                        'Content-Disposition': 
                        'attachment;filename=' + filename}
-            #values = { 'file' : data, 'filename' : filename }
         else:
             print "[Client] Error: bad routine for send()"
             exit(1)
@@ -333,9 +367,8 @@ class SSE_Client():
             print url
             print values
 
-        #data = json.dumps(values)
-
         return requests.post(url, data, headers = headers)
+
 
     def testSearch(self, index):
         '''
@@ -371,6 +404,7 @@ class SSE_Client():
         else:
             print "FOUND RESULT"
 
+
     def testGet(self, index, k, c):
 
         cc = 0
@@ -382,6 +416,7 @@ class SSE_Client():
             if F == index[cc][0]:
                 return F
             cc = cc + 1
+
 
 
 def main():
@@ -437,31 +472,7 @@ def main():
 
         infilename = args.update[0]
         outfilename = args.update[0].split("/")[1]
-
-        # First update index and send it
-        data = sse.update(infilename)
-        r = sse.send(UPDATE, data)
-        data = r.json()
-        results = data['results']
-        print "Results of UPDATE: " + results 
-        
-        # Then encrypt msg
-        infile = open(infilename, "r")     
-        outfilename_full = "enc_mail/" + outfilename   
-        outfile = open(outfilename_full, "w+")
-        sse.encryptMail(infile, outfile)
-        infile.close()
-        
-        outfile.seek(0)
-        data = binascii.hexlify(outfile.read())
-
-        # Then send message
-        r = sse.send(ADD_MAIL, data, outfilename)        
-        data = r.json()
-        results = data['results']
-        print "Results of UPDATE/ADD FILE: " + results
-
-        outfile.close()
+        sse.update(infilename, outfilename)
 
     elif args.search:
         if (DEBUG):

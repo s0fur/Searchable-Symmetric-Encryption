@@ -15,7 +15,7 @@ import json
 FILE = "[JMAP] "
 SEARCH = "search"
 UPDATE = "update"
-ADD_FILE = "add"
+ADD_FILE = "addmail"
 SEARCH_METHOD = "getEncryptedMessages"
 UPDATE_METHOD = "updateEncryptedIndex"
 ADD_FILE_METHOD = "putEncryptedMessage"
@@ -69,13 +69,13 @@ JMAP CALLS FOR SSE:
 
 ["getEncryptedMessages", 
   {
-  "ks": [ "(k1 n, k2 n)", "(k1 n+1, k2 n+1)", ... ]
+  "query": [ "(k1 n, k2 n)", "(k1 n+1, k2 n+1)", ... ]
   },
   "#1" ]
 
 ["encryptedMessages",
   {
-  "list": [ "data for msg n", "data for msg n+1", ... ]
+  "results": [ "data for msg n", "data for msg n+1", ... ]
   }
   "#1" ]
 
