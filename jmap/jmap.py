@@ -118,3 +118,67 @@ def pack(METHOD, data, id_num, filename=None):
         return -1
 
     return message
+
+def unpack_search(data):
+
+    if data[0] != SEARCH_METHOD:
+        return -1
+
+    method = data[0]
+    id_num = data[2]
+
+    # Limit scope to args (data[1])
+    data = data[1]
+    query = data['query']
+
+    return (method, query, id_num)
+
+
+def unpack_update(data):
+    
+    if data[0] != UPDATE_METHOD:
+        return -1
+
+    method = data[0]
+    id_num = data[2]
+
+    # Limit scope to args (data[1])
+    data = data[1]
+    new_index = data['index']
+
+    return (method, new_index, id_num)
+
+def unpack_add_file(data):
+
+    if data[0] != ADD_FILE_METHOD:
+        return -1
+
+    method = data[0]
+    id_num = data[2]
+
+    # Limit scope to args (data[1])
+    data = data[1]
+
+    file = data['file']
+    filename = data['filename']
+
+    return (method, file, filename, id_num)
+
+def unpack(METHOD, data):
+    FUNC = "jmap.unpack"
+
+    if not METHOD:
+        print FILE + "Must provide a method to " + FUNC
+        return -1
+  
+    if METHOD == SEARCH:
+        return unpack_search(data)
+    elif METHOD == UPDATE:
+        return unpack_update(data)
+    elif METHOD == ADD_FILE: 
+        return unpack_add_file(data)
+    else:
+        print FILE + "Unknown METHOD in " + FUNC
+        return -1
+
+

@@ -12,6 +12,7 @@
 import socket
 import os
 import sys
+sys.path.append(os.path.realpath('../jmap'))
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
@@ -26,6 +27,7 @@ from flask import request
 from flask import render_template
 from flask import jsonify
 from werkzeug import secure_filename
+import jmap
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'mail'
@@ -36,10 +38,10 @@ DEBUG = 1
 # CMD list
 UPDATE = "update"
 SEARCH = "search"
-ADD_MAIL = "addmail"
+ADD_FILE = "addmail"
 SEARCH_METHOD = "getEncryptedMessages"
 UPDATE_METHOD = "updateEncryptedIndex"
-ADD_MAIL_METHOD = "putEncryptedMessage"
+ADD_FILE_METHOD = "putEncryptedMessage"
 
 ########
 #
@@ -51,29 +53,29 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
 
+
 @app.route('/addmail', methods=['POST'])
 def add_mail():
 
     if not request.json:
         return jsonify({'ret' : 'Error: not json'})
 
-    data = request.get_json()
-    if data[0] != ADD_MAIL_METHOD:
+    (method, file, filename, id_num) = jmap.unpack(ADD_FILE, request.get_json())
+
+    if method != ADD_FILE_METHOD:
         return jsonify({'ret' : 'Error: Wrong Method for url'})
 
-    id_num = data[2]
-    data = data[1]
-    file = data['file']
+    # return file to binary
     file = binascii.unhexlify(file)
 
-    filename = data['filename']
+    # open file and write to it locally
     path = os.path.join(app.config['UPLOAD_FOLDER'], filename) 
-
     f = open(path, "w+")
     f.write(file)
     f.close()
 
     return jsonify(results="GOOD ADD FILE")
+
 
 # TODO: Use this to request mail? Currently just sending them back after
 # SEARCH routine
@@ -81,19 +83,17 @@ def add_mail():
 def get_mail():
     pass
 
+
 @app.route('/update', methods=['POST'])
 def update():
 
     if not request.json:
         return jsonify({'ret' : 'Error: not json'})
 
-    new_index = request.get_json()
-    if new_index[0] != UPDATE_METHOD:
-        return jsonify({'ret' : 'Error: Wrong Method for url'})
+    (method, new_index, id_num) = jmap.unpack(UPDATE, request.get_json())
 
-    id_num = new_index[2]
-    new_index = new_index[1]
-    new_index = new_index['index']
+    if method != UPDATE_METHOD:
+        return jsonify({'ret' : 'Error: Wrong Method for url'}) 
 
     index = anydbm.open("index", "c")
 
@@ -121,19 +121,17 @@ def update():
     index.close()
     return jsonify(results="GOOD UPDATE")
 
+
 @app.route('/search', methods=['POST'])
 def search():
 
     if not request.json:
         return jsonify({'ret' : 'Error: not json'})
 
-    query = request.get_json()
-    if query[0] != SEARCH_METHOD:
-        return jsonify({'ret' : 'Error: Wrong Method for url'})
+    (method, query, id_num) = jmap.unpack(SEARCH, request.get_json())
 
-    id_num = query[2]
-    query = query[1]
-    query = query['query']
+    if method != SEARCH_METHOD:
+        return jsonify({'ret' : 'Error: Wrong Method for url'})
 
     print query
 
@@ -204,6 +202,7 @@ def search():
 
     return jsonify(results=buf)
 
+
 def get(index_n, k1, count):
        
     cc = 0
@@ -218,6 +217,7 @@ def get(index_n, k1, count):
 
     return 0
 
+
 def dec(k2, d):
 
     d_bin = binascii.unhexlify(d) 
@@ -228,6 +228,7 @@ def dec(k2, d):
     if (DEBUG): print "[Server] Retrieved Doc = %s" % (doc)
 
     return doc
+
 
 def PRF(k, data):
     hmac = HMAC.new(k, data, SHA256)
