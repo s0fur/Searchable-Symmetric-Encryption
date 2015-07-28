@@ -133,8 +133,6 @@ def search():
     if method != SEARCH_METHOD:
         return jsonify({'ret' : 'Error: Wrong Method for url'})
 
-    print query
-
     index = anydbm.open("index", "r")
 
     # TODO: crappy hack for now. Need to get size of index,
@@ -155,7 +153,7 @@ def search():
     for i in query:
         k1 = i[0].encode('ascii', 'ignore')
         k2 = i[1].encode('ascii', 'ignore')
-        print "k1: %s\nk2: %s\n" % (k1, k2)
+        if (DEBUG > 1): print "k1: %s\nk2: %s\n" % (k1, k2)
         D = []
         for k, v in index.iteritems():
             d = get((k,v), k1, count)
@@ -173,7 +171,8 @@ def search():
         for d in D:
             m = dec(k2, d)
             m = filter(lambda x: x in string.printable, m)
-            M.append(m) 
+            if m not in M:
+                M.append(m) 
 
     if not M:
         print "[Server] Found no results for query"
