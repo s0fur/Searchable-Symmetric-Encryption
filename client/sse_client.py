@@ -283,11 +283,11 @@ class SSE_Client():
                         if (DEBUG > 1): 
                             print("Found '%s' in db. C = %d" % (w, c))
                         found = 1
-                        break
+                        #break
                     else:
                         c = c + 1
 
-                if (DEBUG and not found):
+                if ((DEBUG > 1) and not found):
                     print("'%s' not found in db" % w)
 
                 l = self.PRF(k1, str(c))

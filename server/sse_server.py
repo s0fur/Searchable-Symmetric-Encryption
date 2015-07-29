@@ -224,7 +224,7 @@ def dec(k2, d):
     cipher = AES.new(k2[:16], AES.MODE_CBC, iv)
     doc = cipher.decrypt(d_bin[16:])
 
-    if (DEBUG): print "[Server] Retrieved Doc = %s" % (doc)
+    if (DEBUG > 1): print "[Server] Retrieved Doc = %s" % (doc)
 
     return doc
 
