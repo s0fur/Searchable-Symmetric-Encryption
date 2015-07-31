@@ -18,7 +18,6 @@ from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 import unicodedata
 import binascii
-import database
 import anydbm
 import string
 import json
@@ -58,12 +57,12 @@ def allowed_file(filename):
 def add_mail():
 
     if not request.json:
-        return jsonify({'ret' : 'Error: not json'})
+        return jsonify(results='Error: not json')
 
     (method, file, filename, id_num) = jmap.unpack(ADD_FILE, request.get_json())
 
     if method != ADD_FILE_METHOD:
-        return jsonify({'ret' : 'Error: Wrong Method for url'})
+        return jsonify(results='Error: Wrong Method for url')
 
     # return file to binary
     file = binascii.unhexlify(file)
@@ -88,12 +87,12 @@ def get_mail():
 def update():
 
     if not request.json:
-        return jsonify({'ret' : 'Error: not json'})
+        return jsonify(results='Error: not json')
 
     (method, new_index, id_num) = jmap.unpack(UPDATE, request.get_json())
 
     if method != UPDATE_METHOD:
-        return jsonify({'ret' : 'Error: Wrong Method for url'}) 
+        return jsonify(results='Error: Wrong Method for url')
 
     index = anydbm.open("index", "c")
 
@@ -126,12 +125,12 @@ def update():
 def search():
 
     if not request.json:
-        return jsonify({'ret' : 'Error: not json'})
+        return jsonify(results='Error: not json')
 
     (method, query, id_num) = jmap.unpack(SEARCH, request.get_json())
 
     if method != SEARCH_METHOD:
-        return jsonify({'ret' : 'Error: Wrong Method for url'})
+        return jsonify(results='Error: Wrong Method for url')
 
     index = anydbm.open("index", "r")
 
