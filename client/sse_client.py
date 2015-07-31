@@ -29,6 +29,7 @@ import json
 from flask import Flask, jsonify, request
 import requests
 import jmap
+from nltk.stem.porter import PorterStemmer
 
 DEBUG = 1
 SEARCH = "search"
@@ -74,6 +75,8 @@ class SSE_Client():
         # client's cipher (AES w/ CBC)
         self.cipher = self.initCipher()
 
+        # Stemming tool (cuts words to their roots/stems)
+        self.stemmer = PorterStemmer()
 
     def initKeys(self):
         # initialize keys k & kPrime
@@ -227,11 +230,15 @@ class SSE_Client():
         for line in infile:
             for word in line.split():
                 try:
-                    if word not in word_list and '\x08' not in word:
+                    word = self.stemmer.stem(word)
+                    word = word.encode('ascii', 'ignore')
+                    if  word not in word_list and '\x08' not in word:
                         word_list.append(word)
                 # except catches case of first word in doc, and an
                 # empty list cannot be iterated over
                 except:
+                    word = self.stemmer.stem(word)
+                    word = word.encode('ascii', 'ignore')
                     word_list = [word]
 
         return word_list
