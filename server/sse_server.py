@@ -194,7 +194,8 @@ def search():
     # and parse
     buf = []
     for m in M:
-        fd = open(m, "rb")
+        path = os.path.join(app.config['UPLOAD_FOLDER'], m)
+        fd = open(path, "rb")
         buf.append(binascii.hexlify(fd.read()))
         fd.close()
 

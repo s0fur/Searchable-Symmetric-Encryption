@@ -22,18 +22,23 @@ import binascii
 from argparse import ArgumentParser
 import string
 import anydbm
-from client import Client
 import json
-from flask import Flask, jsonify, request
+from flask import Flask
 import requests
 import jmap
 from nltk.stem.porter import PorterStemmer
+import email
 
 DEBUG = 1
 SEARCH = "search"
 UPDATE = "update"
 ADD_MAIL = "addmail"
 DEFAULT_URL = "http://localhost:5000/"
+
+# TODO: Maybe strip out some of the excluded punctuation. Could be useful
+# to keep some punct in the strings. We're mostly looking to strip the
+# final punct (ie: '.' ',' '!' etc)
+EXCLUDE = string.punctuation
 
 app = Flask(__name__)
 
@@ -45,11 +50,6 @@ app = Flask(__name__)
 class SSE_Client():
 
     def __init__(self):
-
-        # interface for sending msgs to server
-        self.client = Client()
-
-        # need to either set up index, or load it in from file
 
         # placeholder for password. Will eventually take
         # as an arg of some sort
@@ -202,12 +202,22 @@ class SSE_Client():
 
     def update_index(self, document):
 
+        # Open file, read it's data, and close it
         infile = open(document, "r")
-        word_list = self.parseDocument(infile)
-        if (DEBUG > 1): print "[Update] Words from doc: " + word_list
+        msg = email.message_from_file(infile)
         infile.close()
 
-        index = self.encryptIndex(document, word_list)
+        # Parse body of email and return list of words
+        word_list = self.parseDocument(msg)
+
+        # TODO:  
+        # Parse headers of email
+        # The parsing is easy. Figuring out how to best add headers
+        # to the index is trickier...
+
+        if (DEBUG > 1): print "[Update] Words from doc: " + word_list
+
+        index = self.encryptIndex(document.split("/")[1], word_list)
 
         # test decryption and search of index
         # PASSES!
@@ -224,10 +234,11 @@ class SSE_Client():
     def parseDocument(self, infile):
 
         word_list = None
-
-        for line in infile:
+        for line in email.Iterators.body_line_iterator(infile):
             for word in line.split():
                 try:
+                    if any(s in EXCLUDE for s in word):
+                        word = ''.join(ch for ch in word if ch not in EXCLUDE)
                     word = self.stemmer.stem(word)
                     word = word.encode('ascii', 'ignore')
                     if  word not in word_list and '\x08' not in word:
@@ -235,6 +246,8 @@ class SSE_Client():
                 # except catches case of first word in doc, and an
                 # empty list cannot be iterated over
                 except:
+                    if any(s in EXCLUDE for s in word):
+                        word = ''.join(ch for ch in word if ch not in EXCLUDE)
                     word = self.stemmer.stem(word)
                     word = word.encode('ascii', 'ignore')
                     word_list = [word]
