@@ -174,8 +174,9 @@ def search():
                 M.append(m) 
 
     if not M:
-        print "[Server] Found no results for query"
-        return 0
+        buf = "Found no results for query"
+        print "[Server] " +  buf
+        return jsonify(results=buf)
 
     if (DEBUG): 
         print "[Server] Found %d results for query" % len(M)

@@ -35,6 +35,8 @@ UPDATE = "update"
 ADD_MAIL = "addmail"
 DEFAULT_URL = "http://localhost:5000/"
 
+NO_RESULTS = "Found no results for query"
+
 # TODO: Maybe strip out some of the excluded punctuation. Could be useful
 # to keep some punct in the strings. We're mostly looking to strip the
 # final punct (ie: '.' ',' '!' etc)
@@ -214,6 +216,8 @@ class SSE_Client():
         # Parse headers of email
         # The parsing is easy. Figuring out how to best add headers
         # to the index is trickier...
+        word_list.extend(self.parseHeader(msg))
+
 
         if (DEBUG > 1): print "[Update] Words from doc: " + word_list
 
@@ -238,8 +242,9 @@ class SSE_Client():
             for word in line.split():
                 try:
                     if any(s in EXCLUDE for s in word):
-                        word = ''.join(ch for ch in word if ch not in EXCLUDE)
-                    word = self.stemmer.stem(word)
+                        word = self.removePunctuation(word)
+                        word = self.stemmer.stem(word)
+                    word = word.lower()
                     word = word.encode('ascii', 'ignore')
                     if  word not in word_list and '\x08' not in word:
                         word_list.append(word)
@@ -247,12 +252,31 @@ class SSE_Client():
                 # empty list cannot be iterated over
                 except:
                     if any(s in EXCLUDE for s in word):
-                        word = ''.join(ch for ch in word if ch not in EXCLUDE)
+                        word = self.removePunctuation(word)
                     word = self.stemmer.stem(word)
+                    word = word.lower()
                     word = word.encode('ascii', 'ignore')
                     word_list = [word]
 
         return word_list
+
+
+    def parseHeader(self, msg):
+
+        # TODO: need to strip some punctuation, but not all. Email addrs
+        # may want to be split on '.' and dates may need some stripping.
+        # Currently just adds entirety of header to index
+        header_list = []
+        for i in ["from", "sent", "date", "to", "subject", "cc"]:
+            if msg[i] != None:
+                header_list.append(msg[i])
+
+        print header_list
+        return header_list
+
+
+    def removePunctuation(self, string):
+        return ''.join(ch for ch in string if ch not in EXCLUDE)
 
 
     def encryptIndex(self, document, word_list):
@@ -340,6 +364,7 @@ class SSE_Client():
         L = []
         for i in query:
             if (DEBUG > 1): print repr(i)
+            i = i.lower()
             k1 = self.PRF(self.k, ("1" + i))
             k2 = self.PRF(self.k, ("2" + i))
             L.append((k1, k2))
@@ -353,6 +378,11 @@ class SSE_Client():
         ret_data = r.json()
         results = ret_data['results']
         print "Results of SEARCH:"
+
+        if results == NO_RESULTS:
+            print results
+            return -1
+
         for i in results:
             self.decryptMail(binascii.unhexlify(i), )
 
