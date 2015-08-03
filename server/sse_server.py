@@ -115,12 +115,16 @@ def update():
 
         exists = 0
         for k, v in index.iteritems():
-            if match == k:
+            if match == k: # and i1 == v:
                 exists = 1
                 del index[k]
                 break
 
-            # TODO: New index scheme. If exists, append.
+            '''
+            # TODO: New index scheme. If exists, append. Current version
+            # sends another query (i2) which is the search query OR'd with
+            # the search term and count -1. That way, you can more easily
+            # find the previous entry, delete it, and store the new one.
 
             # Shouldnt be exact matches anymore, but will leave in logic
             # of if stmt above for now, just in case.
@@ -139,9 +143,11 @@ def update():
                     pass
                 else:
                     pass
+            '''
 
-        if not exists:
-            index[i0] = i1
+        index[i0] = i1
+        #if not exists:
+        #    index[i0] = i1
 
     if (DEBUG > 1): 
         print "\nUpdate Complete! Index contents:" 
@@ -227,11 +233,15 @@ def search():
         # dec() each and add to list of id's (M).
         # Send those messages are found to the client
 
+        print "D: "
+        print D
         for d in D:
             m = dec(k2, d)
             m = filter(lambda x: x in string.printable, m)
-            if m not in M:
-                M.append(m) 
+            for msg in m.split(DELIMETER):
+                print "-----\t" + msg
+                if msg not in M:
+                    M.append(msg) 
 
     if not M:
         buf = "Found no results for query"
