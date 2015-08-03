@@ -28,6 +28,7 @@ import requests
 import jmap
 from nltk.stem.porter import PorterStemmer
 import email
+import re
 
 DEBUG = 1
 SEARCH = "search"
@@ -36,6 +37,9 @@ ADD_MAIL = "addmail"
 DEFAULT_URL = "http://localhost:5000/"
 
 NO_RESULTS = "Found no results for query"
+
+ENC_BODY = 0
+ENC_HEADERS = 1
 
 # TODO: Maybe strip out some of the excluded punctuation. Could be useful
 # to keep some punct in the strings. We're mostly looking to strip the
@@ -216,12 +220,18 @@ class SSE_Client():
         # Parse headers of email
         # The parsing is easy. Figuring out how to best add headers
         # to the index is trickier...
-        word_list.extend(self.parseHeader(msg))
+        (word_list_extended, header_list) = self.parseHeader(msg)
+        word_list.extend(word_list_extended)
 
 
         if (DEBUG > 1): print "[Update] Words from doc: " + word_list
 
-        index = self.encryptIndex(document.split("/")[1], word_list)
+        index = self.encryptIndex(document.split("/")[1], word_list,
+                                  ENC_BODY)
+
+        for i in header_list:
+            index.extend(self.encryptIndex(document.split("/")[1], i,
+                                           ENC_HEADERS))
 
         # test decryption and search of index
         # PASSES!
@@ -266,26 +276,86 @@ class SSE_Client():
         # TODO: need to strip some punctuation, but not all. Email addrs
         # may want to be split on '.' and dates may need some stripping.
         # Currently just adds entirety of header to index
+        header_list_standard = []
+
         header_list = []
+        header_list_from = ["from"]
+        header_list_sent = ["sent"]
+        header_list_date = ["date"]
+        header_list_to = ["to"]
+        header_list_subject = ["subject"]
+        header_list_cc = ["cc"]
+
+        regex = r"[\w']+"
+
         for i in ["from", "sent", "date", "to", "subject", "cc"]:
             if msg[i] != None:
-                header_list.append(msg[i])
+                header_list_standard.append(msg[i])
 
-        print header_list
-        return header_list
+                if i == "from":
+                    header_list_from.append(msg[i])
+                    tmp = re.findall(regex, msg[i])
+                    for j in tmp:
+                        if j != "com":
+                            header_list_from.append(j)
+                            header_list_standard.append(j)
+                    header_list.append(header_list_from)
+
+                elif i == "sent":
+                    header_list_sent.append(msg[i])
+                    tmp = re.findall(regex, msg[i])
+                    for j in tmp:
+                        header_list_sent.append(j)
+                        header_list_standard.append(j)
+                    header_list.append(header_list_sent)
+
+                elif i == "date":
+                    header_list_date.append(msg[i])
+                    tmp = re.findall(regex, msg[i])
+                    for j in tmp:
+                        header_list_date.append(j)
+                        header_list_standard.append(j)
+                    header_list.append(header_list_date)
+
+                elif i == "to":
+                    header_list_to.append(msg[i])
+                    tmp = re.findall(regex, msg[i])
+                    for j in tmp:
+                        if j != "com":
+                            header_list_to.append(j)
+                            header_list_standard.append(j)
+                    header_list.append(header_list_to)
+
+                elif i == "subject":
+                    header_list_subject.append(msg[i])
+                    tmp = re.findall(regex, msg[i])
+                    for j in tmp:
+                        header_list_subject.append(j)
+                        header_list_standard.append(j)
+                    header_list.append(header_list_subject)
+
+                elif i == "cc":
+                    header_list_cc.append(msg[i])
+                    tmp = re.findall(regex, msg[i])
+                    for j in tmp:
+                        if j != "com": 
+                            header_list_cc.append(j)
+                            header_list_standard.append(j)
+                    header_list.append(header_list_cc)
+
+        if (DEBUG > 1):
+            print header_list_standard
+            print header_list
+        return (header_list_standard, header_list)
 
 
     def removePunctuation(self, string):
         return ''.join(ch for ch in string if ch not in EXCLUDE)
 
 
-    def encryptIndex(self, document, word_list):
+    def encryptIndex(self, document, word_list, TYPE):
 
         # This is where the SSE update routine is implemented
-
-        if (DEBUG): print "Encrypting index of words in %s" % document
-
-        L = []
         '''
         kPlus as described below (first) is used in the implementation
         of Dynamic SSE (specifically to allow updating, and requires
@@ -296,7 +366,10 @@ class SSE_Client():
         that are added after the initial setup, but since I'm not 
         (yet) implementing setup(), two dictionaries is unecessary
         '''
+        if (DEBUG > 1): 
+            print "Encrypting index of words in '%s'" % document
 
+        L = []
         index = anydbm.open("index", "c")
 
         dynamic = 0 # 0 for 1 dict, 1 for 2 dicts (not implemented)
@@ -307,7 +380,10 @@ class SSE_Client():
                 print "kPlus = " + kPlus + " w = " + w
                 k1Plus = self.prf.update(kPlus + ("1" + w))
                 k2Plus = self.prf.update(kPlus + ("2" + w))
-        
+       
+        # For each word, look through index to see if it's there. If not,
+        # set c = 0, and apply the PRF. Otherwise c == number of occurences
+        # of that word/term/number 
         else:
             for w in word_list:
 
@@ -315,9 +391,21 @@ class SSE_Client():
                 k1 = self.PRF(self.k, ("1" + w))
                 k2 = self.PRF(self.k, ("2" + w))
 
+                # If TYPE == 1, we're parsing a header list. [0] will be 
+                # type of header, which we'll use to disguise the words of
+                # the header (instead of c).  Also, pass over if on first
+                # iteration of list, because that will just be the type.
+                if TYPE == ENC_HEADERS:
+                    header = word_list[0]
+                    if w == header:
+                        continue
+
+                   
+
                 if (DEBUG > 1): print("k1 = %s\nk2 = %s\n" % (k1, k2))
 
-                # Set counter "c" (set as 0 if not in index)
+                # Set counter "c" (set as 0 if not in index), increment
+                # for each occurence of that word in the index
                 c = 0
                 found = 0
                 for k, v in index.iteritems():
@@ -325,23 +413,39 @@ class SSE_Client():
                         if (DEBUG > 1): 
                             print("Found '%s' in db. C = %d" % (w, c))
                         found = 1
-                        #break
-                    else:
                         c = c + 1
+                        #break
+                    #else:
+                    #    c = c + 1
 
-                if ((DEBUG > 1) and not found):
-                    print("'%s' not found in db" % w)
+                if not found:
+                    c = 0
+                    if (DEBUG > 1): print("'%s' not found in db" % w)
 
-                l = self.PRF(k1, str(c))
+                # Set l as the PRF of k1 (1 || w) and c (num of occur)
+                # If parsing header list (TYPE > 0), then PRF k1 and 
+                # header term.
+                if TYPE == ENC_BODY:
+                    l = self.PRF(k1, str(c))
+                else:
+                    l = self.PRF(k1, header)
 
+                # Set d as encrypted mail id
                 d = self.encryptMailID(k2, document)
 
                 if (DEBUG > 1):
                     print "w = " + w + "\tc = " + str(c)
                     print("l = %s\nd = %s\n" % (l, d))
 
+                # Increment c (1 indexed, not 0), then add unecrypted
+                # values to local index, and append encrypted/hashed
+                # values to L, the list that will extend the remote index
                 c = c + 1
-                index[w] = str(c)
+                if TYPE == ENC_BODY:
+                    index[w] = str(c)
+                else:
+                    index[w] = str(c) + ":" + header
+
                 L.append((l, d))
 
         index.close()

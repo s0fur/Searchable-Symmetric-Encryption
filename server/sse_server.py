@@ -145,15 +145,23 @@ def search():
             print "V: " + v
             print "\n"
 
-    # query is a list of search terms, so each 'i' is a word
-    # each word contains k1, to be used to find the correct hashed
-    # document name, and k2 for unhashing the document name
+    # query is a list of search terms, so each 'i' is a word/query
+    # each word/query is a tuple containing k1, a hash of the search term,
+    # and k2 for decrypting the document name.  Use k1 to match the key, 
+    # and use k2 to decrypt each value (mail ID or name) that is associated
+    # with that key.
     M = []
     for i in query:
+        # Drop unicode
         k1 = i[0].encode('ascii', 'ignore')
         k2 = i[1].encode('ascii', 'ignore')
         if (DEBUG > 1): print "k1: %s\nk2: %s\n" % (k1, k2)
         D = []
+
+        # Then, go through entire index, each key getting evaluated by the
+        # get() routine, and any matches getting returned and appended to 
+        # D. Don't break on a match, as the same word (k/k1) can have 
+        # several entries, each for a single message.
         for k, v in index.iteritems():
             d = get((k,v), k1, count)
             if d:
@@ -163,8 +171,11 @@ def search():
 
         if not D: continue
 
-        # Go through list of docs in which the search query was found
-        # dec() each and add to list of id
+        # 'd' represents an encrypted id number for a message (in the 
+        # simple case, just the message's name).
+
+        # Go through list of d's in which the search query was found and
+        # dec() each and add to list of id's (M).
         # Send those messages are found to the client
 
         for d in D:
@@ -214,7 +225,6 @@ def get(index_n, k1, count):
         if F == index_n[0]:
             return index_n[1]
         cc = cc + 1
-
     return 0
 
 
