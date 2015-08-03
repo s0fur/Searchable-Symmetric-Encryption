@@ -43,6 +43,8 @@ ENC_HEADERS = 1
 SRCH_BODY = 0
 SRCH_HEADERS = 1
 
+DELIMETER = "++?"
+
 # TODO: Maybe strip out some of the excluded punctuation. Could be useful
 # to keep some punct in the strings. We're mostly looking to strip the
 # final punct (ie: '.' ',' '!' etc)
@@ -159,7 +161,7 @@ class SSE_Client():
             print tmp
 
 
-    def encryptMailID(self, k2, document):
+    def encryptMailID(self, k2, document, word=None, index_IDs=None):
 
         # Encrypt doc id (document) with key passed in (k2)
 
@@ -169,7 +171,17 @@ class SSE_Client():
         while len(document)%16 != 0:
             document = document + "\x08"
 
-        encId = iv + cipher.encrypt(document)
+        if word and index_IDs:
+            IDs = index_IDs[word]
+            IDs = IDs + DELIMETER + document 
+
+            while len(IDs)%16 != 0:
+                IDs = IDs + "\x08"
+
+            encId = iv + cipher.encrypt(IDs)
+
+        else:
+            encId = iv + cipher.encrypt(document)
 
         if (DEBUG > 1):
             print("New ID for '%s' = %s" % 
@@ -373,6 +385,7 @@ class SSE_Client():
 
         L = []
         index = anydbm.open("index", "c")
+        index_IDs = anydbm.open("index_IDs", "c")
 
         dynamic = 0 # 0 for 1 dict, 1 for 2 dicts (not implemented)
 
@@ -430,8 +443,14 @@ class SSE_Client():
                 else:
                     l = self.PRF(k1, header)
 
+                # TODO: Update encryptMailID() to open index_IDs and append
+                # new document to list with DELIMETER and encrypt all.
                 # Set d as encrypted mail id
-                d = self.encryptMailID(k2, document)
+                if not found:
+                    d = self.encryptMailID(k2, document)
+
+                else:
+                    d = self.encryptMailID(k2, document, w, index_IDs)
 
                 if (DEBUG > 1):
                     print "w = " + w + "\tc = " + str(c)
@@ -443,6 +462,12 @@ class SSE_Client():
                 c = c + 1
                 if TYPE == ENC_BODY:
                     index[w] = str(c)
+                    if found:
+                        IDs = index_IDs[w]
+                        if document not in IDs.split(DELIMETER):
+                            index_IDs[w] = IDs + DELIMETER + document
+                    else:
+                        index_IDs[w] = document
                 else:
                     index[w] = str(c) + ":" + header
 
@@ -654,6 +679,12 @@ def main():
     elif args.inspect_index:
         if (DEBUG): print("Inspecting the index")
         index = anydbm.open("index", "r")
+        for k, v in index.iteritems():
+            print "k:%s\tv:%s" % (k, v)
+
+        index.close()
+
+        index = anydbm.open("index_IDs", "r")
         for k, v in index.iteritems():
             print "k:%s\tv:%s" % (k, v)
 

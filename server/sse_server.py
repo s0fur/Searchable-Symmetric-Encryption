@@ -47,6 +47,8 @@ SRCH_HEADERS = 1
 
 HEADERS = ["from", "sent", "date", "to", "subject", "cc"]
 
+DELIMETER = "++?"
+
 ########
 #
 # SSE_Server
@@ -107,13 +109,12 @@ def update():
         exists = 0
         for k, v in index.iteritems():
             if i0 == k and i1 == v:
+                # TODO: New index scheme. If exists, append.
+
                 exists = 1
                 print "EXISTS"
                 break
 
-        # TODO: I think this is the issue with overwriting the
-        # previous entries, and only the latest filename was 
-        # found upon queries
         if not exists:
             index[i0] = i1
 
