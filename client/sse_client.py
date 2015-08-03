@@ -171,6 +171,8 @@ class SSE_Client():
         while len(document)%16 != 0:
             document = document + "\x08"
 
+        # If word and index_IDs, then we're updated the existing list of
+        # ids for a corresponding word/term.
         if word and index_IDs:
             IDs = index_IDs[word]
             IDs = IDs + DELIMETER + document 
@@ -440,15 +442,16 @@ class SSE_Client():
                 # header term.
                 if TYPE == ENC_BODY:
                     l = self.PRF(k1, str(c))
+                    lprime = self.PRF(k1, str(c-1))
                 else:
                     l = self.PRF(k1, header)
+                    lprime = None
 
                 # TODO: Update encryptMailID() to open index_IDs and append
                 # new document to list with DELIMETER and encrypt all.
                 # Set d as encrypted mail id
                 if not found:
                     d = self.encryptMailID(k2, document)
-
                 else:
                     d = self.encryptMailID(k2, document, w, index_IDs)
 
@@ -471,9 +474,11 @@ class SSE_Client():
                 else:
                     index[w] = str(c) + ":" + header
 
-                L.append((l, d))
+                L.append((l, d, lprime))
 
         index.close()
+        index_IDs.close()
+
         return L
 
 

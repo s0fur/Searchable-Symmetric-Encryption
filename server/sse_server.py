@@ -102,18 +102,43 @@ def update():
         return jsonify(results='Error: Wrong Method for url')
 
     index = anydbm.open("index", "c")
+    index_len = get_index_len(index)
 
     for i in new_index:
         i0 = i[0].encode('ascii', 'ignore')
         i1 = i[1].encode('ascii', 'ignore')
+        match = i0
+
+        if i[2]:
+            i2 = i[2].encode('ascii', 'ignore')
+            match = i2
+
         exists = 0
         for k, v in index.iteritems():
-            if i0 == k and i1 == v:
-                # TODO: New index scheme. If exists, append.
-
+            if match == k:
                 exists = 1
-                print "EXISTS"
+                del index[k]
                 break
+
+            # TODO: New index scheme. If exists, append.
+
+            # Shouldnt be exact matches anymore, but will leave in logic
+            # of if stmt above for now, just in case.
+            # else: for each element in index, find if the new element is
+            # it's successor, ie new_index[i] is index[i+1]. Do this by 
+            # using the K1 stored as the key of the index (k), and the 
+            # count of the index (0..len) to see if the new_index term (i)
+            # is already here, albeit under a lower number. get_update() 
+            # should return the new length of the id list, as that should
+            # be the c # of the PRF.
+            else:
+                continue
+                x = get_update(i, k, index_len) 
+                if x > 0:
+                    break
+                    pass
+                else:
+                    pass
 
         if not exists:
             index[i0] = i1
@@ -125,6 +150,21 @@ def update():
 
     index.close()
     return jsonify(results="GOOD UPDATE")
+
+
+def get_update(index_new, k1, count):
+
+    cc = 0
+    while cc < count:
+        F = PRF(k1, str(cc))
+        if (DEBUG > 1): 
+            print "index key = " + index_new
+            print "PRF of k1 and %d = %s\n" % (cc, F)
+        if F == index_new:
+            print "\n\nFound existing term in get_update\n\n"
+            return cc
+        cc = cc + 1
+    return -1
 
 
 @app.route('/search', methods=['POST'])
@@ -148,17 +188,7 @@ def search():
         TYPE = SRCH_HEADERS
 
     index = anydbm.open("index", "r")
-
-    # TODO: crappy hack for now. Need to get size of index,
-    # but I'm not sure what the best method is. So for now, 
-    # just iterate through and grab the count.
-    count = 0
-    for k, v in index.iteritems():
-        count = count + 1
-        if (DEBUG > 1):
-            print "K: " + k
-            print "V: " + v
-            print "\n"
+    count = get_index_len(index)
 
     # query is a list of search terms, so each 'i' is a word/query
     # each word/query is a tuple containing k1, a hash of the search term,
@@ -277,6 +307,20 @@ def PRF(k, data):
     hmac = HMAC.new(k, data, SHA256)
     return hmac.hexdigest()
 
+def get_index_len(index):
+
+    # TODO: crappy hack for now. Need to get size of index,
+    # but I'm not sure what the best method is. So for now, 
+    # just iterate through and grab the count.
+    count = 0
+    for k, v in index.iteritems():
+        count = count + 1
+        if (DEBUG > 1):
+            print "K: " + k
+            print "V: " + v
+            print "\n"
+
+    return count
 
 
 if __name__ == '__main__':
