@@ -139,6 +139,9 @@ def search():
     if method != SEARCH_METHOD:
         return jsonify(results='Error: Wrong Method for url')
 
+    # FIXME: This is a crap way to check for headers, and subsequently
+    # searching for them. Need to fix this, as well as following FIXME's
+    # in this method.
     if query[0] in HEADERS:
         header = query[0]
         TYPE = SRCH_HEADERS
@@ -174,6 +177,7 @@ def search():
         # D. Don't break on a match, as the same word (k/k1) can have 
         # several entries, each for a single message.
         for k, v in index.iteritems():
+            # FIXME: continuation of header search. Find a better set-up.
             if TYPE == SRCH_HEADERS:
                 d = get_header((k,v), k1, count, header)
             else:
@@ -241,17 +245,18 @@ def get(index_n, k1, count):
         cc = cc + 1
     return 0
 
+# FIXME: But maybe not. This may be the only somewhat sane addition for the
+# header search.  Could be joined with get(), but is distinct enough that
+# it may be best to keep them separate.
 def get_header(index_n, k1, count, header):
 
-    cc = 0
-    while cc < count:
-        F = PRF(k1, header)
-        if (DEBUG > 1): 
-            print "index key = " + index_n[0]
-            print "PRF of k1 and %d = %s\n" % (cc, F)
-        if F == index_n[0]:
-            return index_n[1]
-        cc = cc + 1
+    F = PRF(k1, header)
+    if (DEBUG > 1): 
+        print "index key = " + index_n[0]
+        print "PRF of k1 and %s = %s\n" % (header, F)
+    if F == index_n[0]:
+        return index_n[1]
+
     return 0
 
 

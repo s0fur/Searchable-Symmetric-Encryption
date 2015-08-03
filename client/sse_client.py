@@ -476,6 +476,7 @@ class SSE_Client():
                 print "k1 = " + k1
                 print "k2 = " + k2
 
+        # FIXME: Don't like the additions made for searching headers
         if TYPE == SRCH_HEADERS:
             Lprime = [header]
             Lprime.extend(L)
