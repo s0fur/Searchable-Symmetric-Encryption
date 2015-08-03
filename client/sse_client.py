@@ -40,6 +40,8 @@ NO_RESULTS = "Found no results for query"
 
 ENC_BODY = 0
 ENC_HEADERS = 1
+SRCH_BODY = 0
+SRCH_HEADERS = 1
 
 # TODO: Maybe strip out some of the excluded punctuation. Could be useful
 # to keep some punct in the strings. We're mostly looking to strip the
@@ -400,8 +402,6 @@ class SSE_Client():
                     if w == header:
                         continue
 
-                   
-
                 if (DEBUG > 1): print("k1 = %s\nk2 = %s\n" % (k1, k2))
 
                 # Set counter "c" (set as 0 if not in index), increment
@@ -452,7 +452,7 @@ class SSE_Client():
         return L
 
 
-    def search(self, query):
+    def search(self, query, header=None, TYPE=SRCH_BODY):
 
         if (DEBUG > 1):
             index = anydbm.open("index", "r")
@@ -476,7 +476,13 @@ class SSE_Client():
                 print "k1 = " + k1
                 print "k2 = " + k2
 
-        message = jmap.pack(SEARCH, L, "1")
+        if TYPE == SRCH_HEADERS:
+            Lprime = [header]
+            Lprime.extend(L)
+            message = jmap.pack(SEARCH, Lprime, "1") 
+
+        else:
+            message = jmap.pack(SEARCH, L, "1")
 
         r = self.send(SEARCH, message) 
         ret_data = r.json()
@@ -578,6 +584,8 @@ def main():
     parser = ArgumentParser()
     parser.add_argument('-s', '--search', metavar='search', dest='search',
                         nargs='*')
+    parser.add_argument('-S', '--search-header', metavar='search_header', 
+                        dest='search_header', nargs=2)
     parser.add_argument('-u', '--update', metavar='update', dest='update',
                         nargs=1)
     parser.add_argument('-e', '--encrypt', metavar='encrypt_file', 
@@ -632,6 +640,15 @@ def main():
                   % args.search[0])
 
         sse.search(args.search[0])
+
+    elif args.search_header:
+        if (DEBUG):
+           print("Searching remote index for word(s):'%s' in header: '%s'" 
+                  % (args.search_header[1], args.search_header[0]))
+
+        query = args.search_header[1]
+        header = args.search_header[0].lower()
+        sse.search(query, header, SRCH_HEADERS)
 
     elif args.inspect_index:
         if (DEBUG): print("Inspecting the index")

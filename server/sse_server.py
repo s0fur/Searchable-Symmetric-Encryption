@@ -42,6 +42,11 @@ SEARCH_METHOD = "getEncryptedMessages"
 UPDATE_METHOD = "updateEncryptedIndex"
 ADD_FILE_METHOD = "putEncryptedMessage"
 
+SRCH_BODY = 0
+SRCH_HEADERS = 1
+
+HEADERS = ["from", "sent", "date", "to", "subject", "cc"]
+
 ########
 #
 # SSE_Server
@@ -124,6 +129,8 @@ def update():
 @app.route('/search', methods=['POST'])
 def search():
 
+    TYPE = SRCH_BODY
+
     if not request.json:
         return jsonify(results='Error: not json')
 
@@ -131,6 +138,10 @@ def search():
 
     if method != SEARCH_METHOD:
         return jsonify(results='Error: Wrong Method for url')
+
+    if query[0] in HEADERS:
+        header = query[0]
+        TYPE = SRCH_HEADERS
 
     index = anydbm.open("index", "r")
 
@@ -163,7 +174,10 @@ def search():
         # D. Don't break on a match, as the same word (k/k1) can have 
         # several entries, each for a single message.
         for k, v in index.iteritems():
-            d = get((k,v), k1, count)
+            if TYPE == SRCH_HEADERS:
+                d = get_header((k,v), k1, count, header)
+            else:
+                d = get((k,v), k1, count)
             if d:
                 D.append(d)
                 if DEBUG > 1: 
@@ -215,10 +229,23 @@ def search():
 
 
 def get(index_n, k1, count):
-       
+
     cc = 0
     while cc < count:
         F = PRF(k1, str(cc))
+        if (DEBUG > 1): 
+            print "index key = " + index_n[0]
+            print "PRF of k1 and %d = %s\n" % (cc, F)
+        if F == index_n[0]:
+            return index_n[1]
+        cc = cc + 1
+    return 0
+
+def get_header(index_n, k1, count, header):
+
+    cc = 0
+    while cc < count:
+        F = PRF(k1, header)
         if (DEBUG > 1): 
             print "index key = " + index_n[0]
             print "PRF of k1 and %d = %s\n" % (cc, F)
