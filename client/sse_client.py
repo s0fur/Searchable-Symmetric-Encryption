@@ -232,10 +232,7 @@ class SSE_Client():
         # Parse body of email and return list of words
         word_list = self.parseDocument(msg)
 
-        # TODO:  
         # Parse headers of email
-        # The parsing is easy. Figuring out how to best add headers
-        # to the index is trickier...
         (word_list_extended, header_list) = self.parseHeader(msg)
         word_list.extend(word_list_extended)
 
@@ -248,10 +245,6 @@ class SSE_Client():
         for i in header_list:
             index.extend(self.encryptIndex(document.split("/")[1], i,
                                            ENC_HEADERS))
-
-        # test decryption and search of index
-        # PASSES!
-        # self.testSearch(index)
 
         if (DEBUG > 1):
             print "\n[Client] Printing list elements to add to index"
@@ -372,109 +365,87 @@ class SSE_Client():
     def encryptIndex(self, document, word_list, TYPE):
 
         # This is where the SSE update routine is implemented
-        '''
-        kPlus as described below (first) is used in the implementation
-        of Dynamic SSE (specifically to allow updating, and requires
-        mult dicts). For simplicity, I'm first using a basic version
-        where I only maintain 1 dictionary on the server and on the 
-        client.  
-        Additionally, it seems the 2nd dict is just to manage updates
-        that are added after the initial setup, but since I'm not 
-        (yet) implementing setup(), two dictionaries is unecessary
-        '''
+
         if (DEBUG > 1): 
             print "Encrypting index of words in '%s'" % document
 
         L = []
         index = anydbm.open("index", "c")
         index_IDs = anydbm.open("index_IDs", "c")
-
-        dynamic = 0 # 0 for 1 dict, 1 for 2 dicts (not implemented)
-
-        if dynamic > 0:
-            kPlus = self.prf.update(self.k + "3").digest()
-            for w in word_list:
-                print "kPlus = " + kPlus + " w = " + w
-                k1Plus = self.prf.update(kPlus + ("1" + w))
-                k2Plus = self.prf.update(kPlus + ("2" + w))
        
         # For each word, look through index to see if it's there. If not,
         # set c = 0, and apply the PRF. Otherwise c == number of occurences
         # of that word/term/number 
-        else:
-            for w in word_list:
 
-                # Initialize K1 and K2
-                k1 = self.PRF(self.k, ("1" + w))
-                k2 = self.PRF(self.k, ("2" + w))
+        for w in word_list:
 
-                # If TYPE == 1, we're parsing a header list. [0] will be 
-                # type of header, which we'll use to disguise the words of
-                # the header (instead of c).  Also, pass over if on first
-                # iteration of list, because that will just be the type.
-                if TYPE == ENC_HEADERS:
-                    header = word_list[0]
-                    if w == header:
-                        continue
+            # Initialize K1 and K2
+            k1 = self.PRF(self.k, ("1" + w))
+            k2 = self.PRF(self.k, ("2" + w))
 
-                if (DEBUG > 1): print("k1 = %s\nk2 = %s\n" % (k1, k2))
+            # If TYPE == 1, we're parsing a header list. [0] will be 
+            # type of header, which we'll use to disguise the words of
+            # the header (instead of c).  Also, pass over if on first
+            # iteration of list, because that will just be the type.
+            if TYPE == ENC_HEADERS:
+                header = word_list[0]
+                if w == header:
+                    continue
 
-                # Set counter "c" (set as 0 if not in index), increment
-                # for each occurence of that word in the index
+            if (DEBUG > 1): print("k1 = %s\nk2 = %s\n" % (k1, k2))
+
+            # counter "c" (set as 0 if not in index), otherwise set
+            # as number found in index (refers to how many documents
+            # that word appears in
+            c = 0
+            found = 0
+
+            try:
+                c = int(index[w])
+                found = 1
+                if (DEBUG > 1): 
+                    print("Found '%s' in db. C = %d" % (w, c))
+            except:
                 c = 0
-                found = 0
-                for k, v in index.iteritems():
-                    if k == w:
-                        if (DEBUG > 1): 
-                            print("Found '%s' in db. C = %d" % (w, c))
-                        found = 1
-                        c = c + 1
-                        #break
-                    #else:
-                    #    c = c + 1
+ 
+            # Set l as the PRF of k1 (1 || w) and c (num of occur)
+            # If parsing header list (TYPE > 0), then PRF k1 and 
+            # header term.
+            if TYPE == ENC_BODY:
+                l = self.PRF(k1, str(c))
+                lprime = self.PRF(k1, str(c-1))
+            else:
+                l = self.PRF(k1, header)
+                lprime = None
 
-                if not found:
-                    c = 0
-                    if (DEBUG > 1): print("'%s' not found in db" % w)
+            # Update encryptMailID() opens index_IDs and appends
+            # new document to list with DELIMETER and encrypts all.
+            # Set d as encrypted mail id [list]
+            if not found:
+                d = self.encryptMailID(k2, document)
+            else:
+                d = self.encryptMailID(k2, document, w, index_IDs)
 
-                # Set l as the PRF of k1 (1 || w) and c (num of occur)
-                # If parsing header list (TYPE > 0), then PRF k1 and 
-                # header term.
-                if TYPE == ENC_BODY:
-                    l = self.PRF(k1, str(c))
-                    lprime = self.PRF(k1, str(c-1))
+            if (DEBUG > 1):
+                print "w = " + w + "\tc = " + str(c)
+                print("l = %s\nd = %s\n" % (l, d))
+
+            # Increment c (1 indexed, not 0), then add unecrypted
+            # values to local index, and append encrypted/hashed
+            # values to L, the list that will extend the remote index
+            c = c + 1
+            if TYPE == ENC_BODY:
+                index[w] = str(c)
+                if found:
+                    IDs = index_IDs[w]
+                    if document not in IDs.split(DELIMETER):
+                        index_IDs[w] = IDs + DELIMETER + document
                 else:
-                    l = self.PRF(k1, header)
-                    lprime = None
+                    index_IDs[w] = document
+            else:
+                index[w] = str(c) + ":" + header
 
-                # TODO: Update encryptMailID() to open index_IDs and append
-                # new document to list with DELIMETER and encrypt all.
-                # Set d as encrypted mail id
-                if not found:
-                    d = self.encryptMailID(k2, document)
-                else:
-                    d = self.encryptMailID(k2, document, w, index_IDs)
-
-                if (DEBUG > 1):
-                    print "w = " + w + "\tc = " + str(c)
-                    print("l = %s\nd = %s\n" % (l, d))
-
-                # Increment c (1 indexed, not 0), then add unecrypted
-                # values to local index, and append encrypted/hashed
-                # values to L, the list that will extend the remote index
-                c = c + 1
-                if TYPE == ENC_BODY:
-                    index[w] = str(c)
-                    if found:
-                        IDs = index_IDs[w]
-                        if document not in IDs.split(DELIMETER):
-                            index_IDs[w] = IDs + DELIMETER + document
-                    else:
-                        index_IDs[w] = document
-                else:
-                    index[w] = str(c) + ":" + header
-
-                L.append((l, d, lprime))
+            L.append((l, d, lprime))
 
         index.close()
         index_IDs.close()
@@ -484,14 +455,7 @@ class SSE_Client():
 
     def search(self, query, header=None, TYPE=SRCH_BODY):
 
-        if (DEBUG > 1):
-            index = anydbm.open("index", "r")
-            print "[Client] Index"
-            for k, v in index.iteritems():
-                print "\t" + k
-                print "\t" + v
-                print "\n"
-
+        index = anydbm.open("index", "r")
         query = query.split()
 
         # Generate list of querys (may be just 1)
@@ -499,9 +463,19 @@ class SSE_Client():
         for i in query:
             if (DEBUG > 1): print repr(i)
             i = i.lower()
+            try:
+                c = index[i]
+            except:
+                c = None
+
             k1 = self.PRF(self.k, ("1" + i))
             k2 = self.PRF(self.k, ("2" + i))
-            L.append((k1, k2))
+            if not c:
+                L.append((k1, k2))
+            else:
+                c = str(int(c)-1)
+                L.append((k1, k2, c))
+
             if (DEBUG > 1): 
                 print "k1 = " + k1
                 print "k2 = " + k2

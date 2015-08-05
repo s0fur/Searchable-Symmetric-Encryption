@@ -206,9 +206,22 @@ def search():
         # Drop unicode
         k1 = i[0].encode('ascii', 'ignore')
         k2 = i[1].encode('ascii', 'ignore')
+        c = 0
+        if i[2]:
+            c = i[2].encode('ascii', 'ignore')
+            print "C: %s " % c
+
         if (DEBUG > 1): print "k1: %s\nk2: %s\n" % (k1, k2)
         D = []
 
+        d = new_get(index, k1, c)
+
+        if not d:
+            print "get() returned None!"
+        else:
+            D.append(d)
+        '''
+        
         # Then, go through entire index, each key getting evaluated by the
         # get() routine, and any matches getting returned and appended to 
         # D. Don't break on a match, as the same word (k/k1) can have 
@@ -216,14 +229,15 @@ def search():
         for k, v in index.iteritems():
             # FIXME: continuation of header search. Find a better set-up.
             if TYPE == SRCH_HEADERS:
-                d = get_header((k,v), k1, count, header)
+                d = get_header((k,v), k1, header)
             else:
                 d = get((k,v), k1, count)
             if d:
                 D.append(d)
+                break
                 if DEBUG > 1: 
                     print "[Server] Search found result!\n%s" % (k)
-
+        ''' 
         if not D: continue
 
         # 'd' represents an encrypted id number for a message (in the 
@@ -282,14 +296,27 @@ def get(index_n, k1, count):
             print "index key = " + index_n[0]
             print "PRF of k1 and %d = %s\n" % (cc, F)
         if F == index_n[0]:
+            print "C: " + str(cc)
             return index_n[1]
         cc = cc + 1
     return 0
 
+def new_get(index, k1, c):
+    F = PRF(k1, c)
+    d = index[F]
+    return d
+    try:
+        F = PRF(k1, str(c))
+        d = index[F]
+    except:
+        d = None
+
+    return d
+
 # FIXME: But maybe not. This may be the only somewhat sane addition for the
 # header search.  Could be joined with get(), but is distinct enough that
 # it may be best to keep them separate.
-def get_header(index_n, k1, count, header):
+def get_header(index_n, k1, header):
 
     F = PRF(k1, header)
     if (DEBUG > 1): 
