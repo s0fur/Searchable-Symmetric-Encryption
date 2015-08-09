@@ -43,6 +43,8 @@ ENC_HEADERS = 1
 SRCH_BODY = 0
 SRCH_HEADERS = 1
 
+DELIMETER = "++?"
+
 # TODO: Maybe strip out some of the excluded punctuation. Could be useful
 # to keep some punct in the strings. We're mostly looking to strip the
 # final punct (ie: '.' ',' '!' etc)
@@ -117,7 +119,6 @@ class SSE_Client():
 
         # generates 16 byte random iv
         self.iv = Random.new().read(AES.block_size)
-
         cipher = AES.new(key, AES.MODE_CBC, self.iv)
 
         return cipher
@@ -126,6 +127,7 @@ class SSE_Client():
     def encryptMail(self, infile, outfile):
         # python sse_client.py -e ../mail/msg1.txt enc_msg1.txt
 
+        # read in infile (opened file descriptor)
         buf = infile.read()
         if buf == '': 
             print("[Enc] mail to encrypt is empty!\nExiting\n")
@@ -133,43 +135,65 @@ class SSE_Client():
 
         if (DEBUG > 1): print("[Enc] mail to encrypt: %s\n" % (buf))
 
+        # pad to mod 16
         while len(buf)%16 != 0:
             buf = buf + "\x08"
 
+        # write encrypted data to new file
         outfile.write(self.iv + self.cipher.encrypt(buf))
 
     def decryptMail(self, buf, outfile=None):
         # python sse_client -d enc_msg1.txt dec_msg1.txt
-
-        # Just pass in input file buf and fd to write out to
+        # Just pass in input file buf and fd in which to write out
 
         if buf == '': 
             print("[Dec] mail to decrypt is empty!\nExiting\n")
             exit(1)
 
-        # self.kPrime[:16] == first 16 bytes of kPrime, ie: enc key
-        # buf[:16] == iv of encrypted msg
+        # self.kPrime[:16] is the  first 16 bytes of kPrime, ie: enc key
+        # buf[:16] is the iv of encrypted msg
         cipher = AES.new(self.kPrime[:16], AES.MODE_CBC, buf[:16])
 
         # decrypt all but first 16 bytes (iv)
+        # if outfile is supplied, write to file
         if (outfile):
             outfile.write(cipher.decrypt(buf[16:]))
+        # else print to terminal
         else:
             tmp = cipher.decrypt(buf[16:])
             print tmp
 
 
-    def encryptMailID(self, k2, document):
+    def encryptMailID(self, k2, document, word=None, index_IDs=None):
 
         # Encrypt doc id (document) with key passed in (k2)
 
+        # set up new cipher using k2 and random iv
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(k2[:16], AES.MODE_CBC, iv)
 
+        # pad to mod 16
         while len(document)%16 != 0:
             document = document + "\x08"
 
-        encId = iv + cipher.encrypt(document)
+        # If word and index_IDs are supplied, then we're updated the 
+        # existing list of ids for a corresponding word/term.
+        # This is used so that we can encrypt a list of mailIDs, rather
+        # than just a single one, speeding up SEARCH routine later.
+        if word and index_IDs:
+            IDs = index_IDs[word]
+            IDs = IDs + DELIMETER + document 
+
+            while len(IDs)%16 != 0:
+                IDs = IDs + "\x08"
+
+            encId = iv + cipher.encrypt(IDs)
+
+        # Else, encrypt single document (likely meaning it's the first time
+        # a particular word has been found in the mail, so the first ID to
+        # get added to the index for that word
+        else:
+            encId = iv + cipher.encrypt(document)
 
         if (DEBUG > 1):
             print("New ID for '%s' = %s" % 
@@ -218,26 +242,21 @@ class SSE_Client():
         # Parse body of email and return list of words
         word_list = self.parseDocument(msg)
 
-        # TODO:  
-        # Parse headers of email
-        # The parsing is easy. Figuring out how to best add headers
-        # to the index is trickier...
+        # Parse headers of email, then extend list of words
         (word_list_extended, header_list) = self.parseHeader(msg)
         word_list.extend(word_list_extended)
 
 
         if (DEBUG > 1): print "[Update] Words from doc: " + word_list
 
+        # Encrypt the index to send to the server (body terms)
         index = self.encryptIndex(document.split("/")[1], word_list,
                                   ENC_BODY)
 
+        # Encrypt index for each header found in message
         for i in header_list:
             index.extend(self.encryptIndex(document.split("/")[1], i,
                                            ENC_HEADERS))
-
-        # test decryption and search of index
-        # PASSES!
-        # self.testSearch(index)
 
         if (DEBUG > 1):
             print "\n[Client] Printing list elements to add to index"
@@ -249,6 +268,8 @@ class SSE_Client():
 
     def parseDocument(self, infile):
 
+        # Iterate through email's body, line-by-line, word-by-word,
+        # strip unwanted characters, skip duplicates, and add to list
         word_list = None
         for line in email.Iterators.body_line_iterator(infile):
             for word in line.split():
@@ -280,6 +301,8 @@ class SSE_Client():
         # Currently just adds entirety of header to index
         header_list_standard = []
 
+        # Set up list for each field to be searched. Sloppy, but will get
+        # the job done
         header_list = []
         header_list_from = ["from"]
         header_list_sent = ["sent"]
@@ -289,6 +312,12 @@ class SSE_Client():
         header_list_cc = ["cc"]
 
         regex = r"[\w']+"
+
+        # Go through each of the specified headers and add the words to the
+        # corresponding list, then append each of those lists to the main
+        # header list that gets returned (a list of lists, each sub-list 
+        # containing data for a particular header, the first term of those
+        # lists being the header name).
 
         for i in ["from", "sent", "date", "to", "subject", "cc"]:
             if msg[i] != None:
@@ -357,111 +386,98 @@ class SSE_Client():
 
     def encryptIndex(self, document, word_list, TYPE):
 
-        # This is where the SSE update routine is implemented
-        '''
-        kPlus as described below (first) is used in the implementation
-        of Dynamic SSE (specifically to allow updating, and requires
-        mult dicts). For simplicity, I'm first using a basic version
-        where I only maintain 1 dictionary on the server and on the 
-        client.  
-        Additionally, it seems the 2nd dict is just to manage updates
-        that are added after the initial setup, but since I'm not 
-        (yet) implementing setup(), two dictionaries is unecessary
-        '''
+        # This is where the meat of the SSE update routine is implemented
+
         if (DEBUG > 1): 
             print "Encrypting index of words in '%s'" % document
 
         L = []
         index = anydbm.open("index", "c")
-
-        dynamic = 0 # 0 for 1 dict, 1 for 2 dicts (not implemented)
-
-        if dynamic > 0:
-            kPlus = self.prf.update(self.k + "3").digest()
-            for w in word_list:
-                print "kPlus = " + kPlus + " w = " + w
-                k1Plus = self.prf.update(kPlus + ("1" + w))
-                k2Plus = self.prf.update(kPlus + ("2" + w))
+        index_IDs = anydbm.open("index_IDs", "c")
        
-        # For each word, look through index to see if it's there. If not,
-        # set c = 0, and apply the PRF. Otherwise c == number of occurences
-        # of that word/term/number 
-        else:
-            for w in word_list:
+        # For each word, look through local index to see if it's there. If
+        # not, set c = 0, and apply the PRF. Otherwise c == number of 
+        # occurences of that word/term/number 
 
-                # Initialize K1 and K2
-                k1 = self.PRF(self.k, ("1" + w))
-                k2 = self.PRF(self.k, ("2" + w))
+        for w in word_list:
 
-                # If TYPE == 1, we're parsing a header list. [0] will be 
-                # type of header, which we'll use to disguise the words of
-                # the header (instead of c).  Also, pass over if on first
-                # iteration of list, because that will just be the type.
-                if TYPE == ENC_HEADERS:
-                    header = word_list[0]
-                    if w == header:
-                        continue
+            # Initialize K1 and K2
+            k1 = self.PRF(self.k, ("1" + w))
+            k2 = self.PRF(self.k, ("2" + w))
 
-                if (DEBUG > 1): print("k1 = %s\nk2 = %s\n" % (k1, k2))
+            # If TYPE == ENC_HEADERS, we're parsing a header list. [0] 
+            # will be type of header, which we'll use to disguise the 
+            # words of the header (instead of c).  Also, pass over if on 
+            # first iteration of list, because that will just be the type
+            # of header (see parseHeader()).
+            if TYPE == ENC_HEADERS:
+                header = word_list[0]
+                if w == header:
+                    continue
 
-                # Set counter "c" (set as 0 if not in index), increment
-                # for each occurence of that word in the index
+            if (DEBUG > 1): print("k1 = %s\nk2 = %s\n" % (k1, k2))
+
+            # counter "c" (set as 0 if not in index), otherwise set
+            # as number found in index (refers to how many documents
+            # that word appears in
+            c = 0
+            found = 0
+            try:
+                c = int(index[w])
+                found = 1
+                if (DEBUG > 1): 
+                    print("Found '%s' in db. C = %d" % (w, c))
+            except:
                 c = 0
-                found = 0
-                for k, v in index.iteritems():
-                    if k == w:
-                        if (DEBUG > 1): 
-                            print("Found '%s' in db. C = %d" % (w, c))
-                        found = 1
-                        c = c + 1
-                        #break
-                    #else:
-                    #    c = c + 1
+ 
+            # Set l as the PRF of k1 (1 || w) and c (num of occur) if 
+            # parsing the body (ENC_BODY).
+            # If parsing header list, then PRF k1 and header term.
+            if TYPE == ENC_BODY:
+                l = self.PRF(k1, str(c))
+                lprime = self.PRF(k1, str(c-1))
+            else:
+                l = self.PRF(k1, header)
+                lprime = None
 
-                if not found:
-                    c = 0
-                    if (DEBUG > 1): print("'%s' not found in db" % w)
-
-                # Set l as the PRF of k1 (1 || w) and c (num of occur)
-                # If parsing header list (TYPE > 0), then PRF k1 and 
-                # header term.
-                if TYPE == ENC_BODY:
-                    l = self.PRF(k1, str(c))
-                else:
-                    l = self.PRF(k1, header)
-
-                # Set d as encrypted mail id
+            # Update encryptMailID() opens index_IDs and appends
+            # new document to list with DELIMETER and encrypts all.
+            # Set d as encrypted mail id [list]
+            if not found:
                 d = self.encryptMailID(k2, document)
+            else:
+                d = self.encryptMailID(k2, document, w, index_IDs)
 
-                if (DEBUG > 1):
-                    print "w = " + w + "\tc = " + str(c)
-                    print("l = %s\nd = %s\n" % (l, d))
+            if (DEBUG > 1):
+                print "w = " + w + "\tc = " + str(c)
+                print("l = %s\nd = %s\n" % (l, d))
 
-                # Increment c (1 indexed, not 0), then add unecrypted
-                # values to local index, and append encrypted/hashed
-                # values to L, the list that will extend the remote index
-                c = c + 1
-                if TYPE == ENC_BODY:
-                    index[w] = str(c)
+            # Increment c (1 indexed, not 0), then add unecrypted
+            # values to local index, and append encrypted/hashed
+            # values to L, the list that will extend the remote index
+            c = c + 1
+            if TYPE == ENC_BODY:
+                index[w] = str(c)
+                if found:
+                    IDs = index_IDs[w]
+                    if document not in IDs.split(DELIMETER):
+                        index_IDs[w] = IDs + DELIMETER + document
                 else:
-                    index[w] = str(c) + ":" + header
+                    index_IDs[w] = document
+            else:
+                index[w] = str(c) + ":" + header
 
-                L.append((l, d))
+            L.append((l, d, lprime))
 
         index.close()
+        index_IDs.close()
+
         return L
 
 
     def search(self, query, header=None, TYPE=SRCH_BODY):
 
-        if (DEBUG > 1):
-            index = anydbm.open("index", "r")
-            print "[Client] Index"
-            for k, v in index.iteritems():
-                print "\t" + k
-                print "\t" + v
-                print "\n"
-
+        index = anydbm.open("index", "r")
         query = query.split()
 
         # Generate list of querys (may be just 1)
@@ -469,9 +485,34 @@ class SSE_Client():
         for i in query:
             if (DEBUG > 1): print repr(i)
             i = i.lower()
+
+            # For each term of query, first try to see if it's already in
+            # index. If it is, send c along with k1 and k2. This will 
+            # massively speed up search on server (1.5 minutes to < 1 sec)
+            try:
+                c = index[i]
+            except:
+                c = None
+
+            # Use k, term ('i') and '1' or '2' as inputs to a pseudo-random
+            # function to generate k1 and k2. K1 will be used to find the 
+            # correct encrypted entry for the term on the server, and k2
+            # will be used to decrypt the mail ID(s)
             k1 = self.PRF(self.k, ("1" + i))
             k2 = self.PRF(self.k, ("2" + i))
-            L.append((k1, k2))
+
+            # If no 'c' (term not in local index so likely not on server),
+            # just send k1 and k2. Will take a long time to return false
+            # TODO, should the client just kill any search for a term not
+            # in local index?  Can we rely on the local index always being
+            # up to date?
+            if not c:
+                L.append((k1, k2))
+            # Otherwise send along 'c'-1. 
+            else:
+                c = str(int(c)-1)
+                L.append((k1, k2, c))
+
             if (DEBUG > 1): 
                 print "k1 = " + k1
                 print "k2 = " + k2
@@ -485,6 +526,7 @@ class SSE_Client():
         else:
             message = jmap.pack(SEARCH, L, "1")
 
+        # Send data and unpack results.
         r = self.send(SEARCH, message) 
         ret_data = r.json()
         results = ret_data['results']
@@ -494,6 +536,9 @@ class SSE_Client():
             print results
             return -1
 
+        # Print out messages that are returned from server
+        # TODO: Should recieve and print out mail, or just recieve mailIDs
+        # and resend requests for those messages?
         for i in results:
             self.decryptMail(binascii.unhexlify(i), )
 
@@ -507,6 +552,9 @@ class SSE_Client():
 
         url = in_url
 
+        # Currently, each server url is just <IP>/<ROUTINE>, so just append
+        # routine to url, and set up headers with jmap package.
+
         if routine == SEARCH:
             url = url + SEARCH
             headers = jmap.jmap_header()
@@ -515,6 +563,7 @@ class SSE_Client():
             headers = jmap.jmap_header()
         elif routine == ADD_MAIL:
             url = url + ADD_MAIL
+            # For sending mail, need to do a little extra with the headers
             headers = {'Content-Type': 'application/json',
                        'Content-Disposition': 
                        'attachment;filename=' + filename}
@@ -526,6 +575,8 @@ class SSE_Client():
             print url
             print values
 
+        # Send to server using requests's post method, and return results
+        # to calling method
         return requests.post(url, data, headers = headers)
 
 
@@ -581,7 +632,13 @@ class SSE_Client():
 def main():
 
     # Set-up a command-line argument parser
-    
+
+    # TODO: Fix argument parser. It works for what it is, but I don't 
+    # have a good enough grasp of the argparser package to fine tune it 
+    # ie: some options shouldnt require an argument but do (ie: '-i' 
+    # should be a standalone option, but currently requires a following,
+    # unused argument
+
     parser = ArgumentParser()
     parser.add_argument('-s', '--search', metavar='search', dest='search',
                         nargs='*')
@@ -654,6 +711,12 @@ def main():
     elif args.inspect_index:
         if (DEBUG): print("Inspecting the index")
         index = anydbm.open("index", "r")
+        for k, v in index.iteritems():
+            print "k:%s\tv:%s" % (k, v)
+
+        index.close()
+
+        index = anydbm.open("index_IDs", "r")
         for k, v in index.iteritems():
             print "k:%s\tv:%s" % (k, v)
 

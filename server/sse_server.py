@@ -47,23 +47,22 @@ SRCH_HEADERS = 1
 
 HEADERS = ["from", "sent", "date", "to", "subject", "cc"]
 
+DELIMETER = "++?"
+
 ########
 #
 # SSE_Server
 #
 ########
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
-
-
 @app.route('/addmail', methods=['POST'])
 def add_mail():
 
+    # Return error if request is not properly formatted
     if not request.json:
         return jsonify(results='Error: not json')
 
+    # Unpack 'arguments'
     (method, file, filename, id_num) = jmap.unpack(ADD_FILE, request.get_json())
 
     if method != ADD_FILE_METHOD:
@@ -91,31 +90,46 @@ def get_mail():
 @app.route('/update', methods=['POST'])
 def update():
 
+    # Return error if request is not properly formatted
     if not request.json:
         return jsonify(results='Error: not json')
 
+    # Unpack 'arguments'
     (method, new_index, id_num) = jmap.unpack(UPDATE, request.get_json())
 
     if method != UPDATE_METHOD:
         return jsonify(results='Error: Wrong Method for url')
 
+    # Open local ecypted index and get length
     index = anydbm.open("index", "c")
+    index_len = get_index_len(index)
 
+    # Iterate through update list, replacing existing entries in local
+    # index if collisions
     for i in new_index:
+        # i0 is the key (ie the hashed term), 
+        # i1 is the value (encrypted list of mailIDs where that word is
+        # present.
         i0 = i[0].encode('ascii', 'ignore')
         i1 = i[1].encode('ascii', 'ignore')
+        match = i0
+
+        # if i2 exists, use that to match (hash of term with c - 1).
+        # Otherwise match with i0, representing word hahsed with header
+        if i[2]:
+            i2 = i[2].encode('ascii', 'ignore')
+            match = i2
+
+        # Go through local index and compare, if match, then delete that 
+        # entry and add new one.
         exists = 0
         for k, v in index.iteritems():
-            if i0 == k and i1 == v:
+            if match == k: # and i1 == v:
                 exists = 1
-                print "EXISTS"
+                del index[k]
                 break
 
-        # TODO: I think this is the issue with overwriting the
-        # previous entries, and only the latest filename was 
-        # found upon queries
-        if not exists:
-            index[i0] = i1
+        index[i0] = i1
 
     if (DEBUG > 1): 
         print "\nUpdate Complete! Index contents:" 
@@ -147,21 +161,11 @@ def search():
         TYPE = SRCH_HEADERS
 
     index = anydbm.open("index", "r")
-
-    # TODO: crappy hack for now. Need to get size of index,
-    # but I'm not sure what the best method is. So for now, 
-    # just iterate through and grab the count.
-    count = 0
-    for k, v in index.iteritems():
-        count = count + 1
-        if (DEBUG > 1):
-            print "K: " + k
-            print "V: " + v
-            print "\n"
+    count = get_index_len(index)
 
     # query is a list of search terms, so each 'i' is a word/query
     # each word/query is a tuple containing k1, a hash of the search term,
-    # and k2 for decrypting the document name.  Use k1 to match the key, 
+    # and k2 for decrypting the document name(s).  Use k1 to match the key 
     # and use k2 to decrypt each value (mail ID or name) that is associated
     # with that key.
     M = []
@@ -169,23 +173,34 @@ def search():
         # Drop unicode
         k1 = i[0].encode('ascii', 'ignore')
         k2 = i[1].encode('ascii', 'ignore')
+        c = 0
+
+        # If i2, then we have already recieved the correct 'c' with which
+        # to find 'key' term.
+        if i[2]:
+            c = i[2].encode('ascii', 'ignore')
+
         if (DEBUG > 1): print "k1: %s\nk2: %s\n" % (k1, k2)
+
+        # D [] is a list of mail IDs found for a term.
+        # Its leftover 'legacy' code. Used to be you had to iterate through
+        # entire encrypted index for repeated use of a term in different
+        # documents (values). Now, 'c' is included, and values are lists
+        # of documents, so each word has only one key in the index. 
+        # However, not fully tested, so I'm loathe to kick out the original
+        # idea of appending d's to a list D[] for now.  
+        # Plus, it should eventually change to have a limit of mail IDs, so
+        # a single term will show up multiple times, each key pointing to 
+        # some number of document IDs.
         D = []
 
-        # Then, go through entire index, each key getting evaluated by the
-        # get() routine, and any matches getting returned and appended to 
-        # D. Don't break on a match, as the same word (k/k1) can have 
-        # several entries, each for a single message.
-        for k, v in index.iteritems():
-            # FIXME: continuation of header search. Find a better set-up.
-            if TYPE == SRCH_HEADERS:
-                d = get_header((k,v), k1, count, header)
-            else:
-                d = get((k,v), k1, count)
-            if d:
-                D.append(d)
-                if DEBUG > 1: 
-                    print "[Server] Search found result!\n%s" % (k)
+        # Find doc id list at that key in the index
+        d = new_get(index, k1, c)
+
+        if not d:
+            print "get() returned None!"
+        else:
+            D.append(d)
 
         if not D: continue
 
@@ -197,10 +212,13 @@ def search():
         # Send those messages are found to the client
 
         for d in D:
+            # Decrypt d, getting list of docs that word is in
             m = dec(k2, d)
             m = filter(lambda x: x in string.printable, m)
-            if m not in M:
-                M.append(m) 
+            for msg in m.split(DELIMETER):
+                print "-----\t" + msg
+                if msg not in M:
+                    M.append(msg) 
 
     if not M:
         buf = "Found no results for query"
@@ -232,6 +250,7 @@ def search():
     return jsonify(results=buf)
 
 
+# Depricated in favor of new_get(), used with new index structure
 def get(index_n, k1, count):
 
     cc = 0
@@ -241,14 +260,29 @@ def get(index_n, k1, count):
             print "index key = " + index_n[0]
             print "PRF of k1 and %d = %s\n" % (cc, F)
         if F == index_n[0]:
+            print "C: " + str(cc)
             return index_n[1]
         cc = cc + 1
     return 0
 
+# Use k1 (hashed search term) and c (num of files it's in) to get key, and 
+# then value of index entry.
+def new_get(index, k1, c):
+    F = PRF(k1, c)
+    d = index[F]
+    return d
+    try:
+        F = PRF(k1, str(c))
+        d = index[F]
+    except:
+        d = None
+
+    return d
+
 # FIXME: But maybe not. This may be the only somewhat sane addition for the
 # header search.  Could be joined with get(), but is distinct enough that
 # it may be best to keep them separate.
-def get_header(index_n, k1, count, header):
+def get_header(index_n, k1, header):
 
     F = PRF(k1, header)
     if (DEBUG > 1): 
@@ -259,7 +293,7 @@ def get_header(index_n, k1, count, header):
 
     return 0
 
-
+# Decrypt doc ID using k2
 def dec(k2, d):
 
     d_bin = binascii.unhexlify(d) 
@@ -276,6 +310,20 @@ def PRF(k, data):
     hmac = HMAC.new(k, data, SHA256)
     return hmac.hexdigest()
 
+def get_index_len(index):
+
+    # TODO: crappy hack for now. Need to get size of index,
+    # but I'm not sure what the best method is. So for now, 
+    # just iterate through and grab the count.
+    count = 0
+    for k, v in index.iteritems():
+        count = count + 1
+        if (DEBUG > 1):
+            print "K: " + k
+            print "V: " + v
+            print "\n"
+
+    return count
 
 
 if __name__ == '__main__':
