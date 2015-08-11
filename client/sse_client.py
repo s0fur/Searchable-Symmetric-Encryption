@@ -105,7 +105,7 @@ class SSE_Client():
             print("k = %s" % hashed)
 
         # Currently k and kPrime are ==
-        # TODO: how to do the two keys?
+        # TODO: Sort out requirements of k and kPrime
         return (hashed, hashed)
 
 
@@ -539,8 +539,15 @@ class SSE_Client():
         # Print out messages that are returned from server
         # TODO: Should recieve and print out mail, or just recieve mailIDs
         # and resend requests for those messages?
+
+        # FIXME: hack to decide if server is returning encrypted msgs (1)
+        # or just the decrypted IDs (0)
+        FILES = 1
         for i in results:
-            self.decryptMail(binascii.unhexlify(i), )
+            if (FILES):
+                self.decryptMail(binascii.unhexlify(i), )
+            else: 
+                print i
 
 
     def PRF(self, k, data):

@@ -3,8 +3,8 @@
 UPDATE='python sse_client.py -u'
 SEARCH='python sse_client.py -s'
 
-# 10 files to UPDATE
-FILES=('1.' '12.' '15.' '18.' '20.' '23.' '26.' '29.' '31.' '34.') # '37.' '4.' '42.' '45.' '62.' '65.' '68.' '70.' '73.' '78.') # '83.' '86.');
+# 22 files to UPDATE
+FILES=('1.' '12.' '15.' '18.' '20.' '23.' '26.' '29.' '31.' '34.' '37.' '4.' '42.' '45.' '62.' '65.' '68.' '70.' '73.' '78.' '83.' '86.')
 
 # 10 'known' terms
 TERMS=( 'tuesday' 'such' 'pm' 'message' 'if' 'but' 'very' 'problem' 'see' 'the')
@@ -30,7 +30,7 @@ if [ "$1" == "update" ];then
     done
 fi
 if [ "$1" == "search" ] || [ "$1" == "all" ]; then
-
+    #$SEARCH 'tuesday such pm message if but very problem see the'
     for i in "${TERMS[@]}"; do
         echo "$SEARCH $i"
         $SEARCH $i

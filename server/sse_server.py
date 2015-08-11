@@ -225,7 +225,16 @@ def search():
         print "[Server] " +  buf
         return jsonify(results=buf)
 
-    if (DEBUG): 
+    # FIXME: sort out if we send back just IDs, or IDs and messages
+    '''
+    # quick hack to return early with just IDs, rather than the
+    # msgs themselves
+    no_files = 0
+    if no_files:
+        return jsonify(results=M)
+    '''
+
+    if (DEBUG > 1): 
         print "[Server] Found %d results for query" % len(M)
         for m in M:
             print "\t - %s" % repr(m)
