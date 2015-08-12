@@ -34,10 +34,13 @@ DEBUG = 1
 SEARCH = "search"
 UPDATE = "update"
 ADD_MAIL = "addmail"
+
+# Default url is localhost, and the port 5000 is set by Flask on the server
 DEFAULT_URL = "http://localhost:5000/"
 
 NO_RESULTS = "Found no results for query"
 
+# Some 'Enums' for different options in SEARCH and UPDATE
 ENC_BODY = 0
 ENC_HEADERS = 1
 SRCH_BODY = 0
@@ -61,7 +64,7 @@ class SSE_Client():
 
     def __init__(self):
 
-        # placeholder for password. Will eventually take
+        # TODO: placeholder for password. Will eventually take
         # as an arg of some sort
         self.password = b"password"
 
@@ -94,18 +97,13 @@ class SSE_Client():
         #hashed = bcrypt.hashpw(self.password, bcrypt.gensalt())
         hashed = bcrypt.hashpw(self.password, self.salt)
 
-        if bcrypt.hashpw(self.password, hashed) == hashed:
-            pass
-        else:
-            print "Password hash failed, exiting"
-            exit(1)
-
         if(DEBUG > 1):
             print("len of k = %d" % len(hashed))
             print("k = %s" % hashed)
 
-        # Currently k and kPrime are ==
+        # Currently k and kPrime are equal
         # TODO: Sort out requirements of k and kPrime
+        # Research uses both, but not sure the difference
         return (hashed, hashed)
 
 
@@ -125,7 +123,6 @@ class SSE_Client():
 
 
     def encryptMail(self, infile, outfile):
-        # python sse_client.py -e ../mail/msg1.txt enc_msg1.txt
 
         # read in infile (opened file descriptor)
         buf = infile.read()
@@ -143,7 +140,6 @@ class SSE_Client():
         outfile.write(self.iv + self.cipher.encrypt(buf))
 
     def decryptMail(self, buf, outfile=None):
-        # python sse_client -d enc_msg1.txt dec_msg1.txt
         # Just pass in input file buf and fd in which to write out
 
         if buf == '': 
@@ -657,8 +653,7 @@ def main():
                         dest='encrypt_file', nargs=2)
     parser.add_argument('-d', '--decrypt', metavar='decrypt_file',
                         dest='decrypt_file', nargs=2)
-    parser.add_argument('-k', '--key', metavar='key')
-    parser.add_argument('-i', '--inspect index', dest='inspect_index')
+    parser.add_argument('-i', '--inspect_index', dest='inspect_index')
     parser.add_argument('-t', '--test_http', dest='test_http')
     args = parser.parse_args()
  
