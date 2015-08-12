@@ -116,10 +116,12 @@ def update():
 
         # if i2 exists, use that to match (hash of term with c - 1).
         # Otherwise match with i0, representing word hahsed with header
-        if i[2]:
-            i2 = i[2].encode('ascii', 'ignore')
-            match = i2
-
+        try:
+            if i[2]:
+                i2 = i[2].encode('ascii', 'ignore')
+                match = i2
+        except:
+            pass
         # Go through local index and compare, if match, then delete that 
         # entry and add new one.
         exists = 0
@@ -177,9 +179,11 @@ def search():
 
         # If i2, then we have already recieved the correct 'c' with which
         # to find 'key' term.
-        if i[2]:
-            c = i[2].encode('ascii', 'ignore')
-
+        try:
+            if i[2]:
+                c = i[2].encode('ascii', 'ignore')
+        except:
+            pass
         if (DEBUG > 1): print "k1: %s\nk2: %s\n" % (k1, k2)
 
         # D [] is a list of mail IDs found for a term.
