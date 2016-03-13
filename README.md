@@ -6,10 +6,10 @@ python-dev
 libffi-dev
 
 bcrypt
-	- install with 'pip install <package>'
+	-install with 'pip install <package>'
 
 Stemming:
-	- install each with 'pip install <package>'
+	-install each with 'pip install <package>'
 	numpy (optional)
 	pyyaml
 	nltk
@@ -18,10 +18,12 @@ Flask
 
 # How To
 To use this SSE implementation, you must first have the server running:
-    python sse_server.py
+	python sse_server.py
 
 Then invoke the client with one of the requisite options:
-    python sse_client.py <OPTION>
+	python sse_client.py <OPTION>
+
+It is also required that the user has access to some set of text documents. I recommend using the Enron corpus, which provides a huge number and variety of email documents.
 
 # Options
     -s, --search "<term(s)>"
