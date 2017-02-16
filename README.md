@@ -4,17 +4,16 @@
 
 python-dev
 libffi-dev
-
+	
+## Python package
+	
 bcrypt
-	-install with 'pip install <package>'
-
-Stemming:
-	-install each with 'pip install <package>'
-	numpy (optional)
-	pyyaml
-	nltk
-
+Stemming
+numpy (optional)
+pyyaml
+nltk
 Flask
+	-install each with 'pip install <package>'
 
 # How To
 To use this SSE implementation, you must first have the server running:
