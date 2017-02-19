@@ -21,7 +21,7 @@ if [ "$1" == "" ]; then
     exit 1
 fi
 
-if [ "$1" == "update" ];then
+if [ "$1" == "update" ] || [ "$1" == "all" ];then
     rm index*
     rm ../server/index
     for i in "${FILES[@]}"; do

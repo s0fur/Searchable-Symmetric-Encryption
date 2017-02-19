@@ -3,24 +3,32 @@
 # Dependencies
 
 python-dev
+
 libffi-dev
-
+	
+## Python packages
+	
 bcrypt
-	-install with 'pip install <package>'
 
-Stemming:
-	-install each with 'pip install <package>'
-	numpy (optional)
-	pyyaml
-	nltk
+Stemming
+
+numpy (optional)
+
+pyyaml
+
+nltk
 
 Flask
 
+	-install each with 'pip install <package>'
+
 # How To
 To use this SSE implementation, you must first have the server running:
+
 	python sse_server.py
 
 Then invoke the client with one of the requisite options:
+
 	python sse_client.py <OPTION>
 
 It is also required that the user has access to some set of text documents. I recommend using the Enron corpus, which provides a huge number and variety of email documents.
